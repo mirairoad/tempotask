@@ -147,6 +147,19 @@ Stay tuned for this powerful addition to Redis-MQ!
 - ✅ **Cloudflare Workers**: Compatible through Node.js compatibility
 - ✅ **Edge Functions**: Compatible through Node.js compatibility
 
+## Areas for Potential Improvement
+
+🔹 **Performance Optimization**
+Instead of polling every 3s (pollIntervalMs), consider using Redis Streams (XADD, XREADGROUP) or Pub/Sub for real-time job notifications, reducing unnecessary queries.
+Jobs are fetched using SCAN in #processJobsLoop(). While better than KEYS, sorted sets (ZSET) with timestamps might be more efficient.
+
+🔹 **Observability & Monitoring**
+Adding metrics collection (e.g., job success/failure rates, queue length).
+Implementing structured logging (e.g., using pino or winston for logs).
+
+🔹 **Backpressure Handling**
+If jobs arrive faster than they are processed, it could implement rate limiting or job deduplication before adding to the queue.
+
 ## License
 
 MIT
