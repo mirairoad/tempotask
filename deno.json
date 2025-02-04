@@ -1,0 +1,39 @@
+{
+  "name": "@leotermine/redismq",
+  "version": "0.2.1",
+  "description": "A simple and efficient job queue system for Deno, Node.js, and Bun. Built on Redis, it offers high-performance task scheduling and processing.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mirairoad/redismq"
+  },
+  "exports": "./src/mod.ts",
+  "imports": {
+    "cron-schedule": "jsr:@p4sca1/cron-schedule@^5.0.3",
+    "ioredis": "npm:ioredis@5.4.1"
+  },
+  "tasks": {
+    "dev": "deno run -A --watch example/index.ts"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "singleQuote": true,
+    "proseWrap": "preserve",
+    "semiColons": true
+  },
+  "lint": {
+    "include": [
+      "src/"
+    ],
+    "rules": {
+      "exclude": [
+        "no-unused-vars"
+      ],
+      "tags": [
+        "recommended"
+      ]
+    }
+  }
+}
