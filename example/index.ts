@@ -1,4 +1,4 @@
-import { QueueManager } from "../src/mod.ts";
+import { JobQueueManager } from "../src/mod.ts";
 import { Redis } from "ioredis";
 
 // import crons
@@ -21,7 +21,7 @@ const client = new Redis(redisOption);
 
 const contextApp = {} // this can be anything like a server instance / store / even a mongowrapper to do calls to db
 
-const app = QueueManager.init(client, contextApp, 1);
+const app = await JobQueueManager.init(client, contextApp, 1);
 
 // register jobs
 app.registerJob(helloWorld); // cron
