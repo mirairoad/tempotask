@@ -181,9 +181,11 @@ export class Worker extends EventTarget {
               } catch (error) {
                 console.error(`Job ${job.id} processing error:`, error);
               } finally {
+                // @ts-ignore
                 this.#activeJobs.delete(jobPromise);
               }
             })();
+        
 
             // Track the active job
             this.#activeJobs.add(jobPromise);
@@ -218,7 +220,7 @@ export class Worker extends EventTarget {
               retryCount: job.retryCount ?? jobEntry.retryCount,
               retryDelayMs: job.retryDelayMs ?? jobEntry.retryDelayMs,
             };
-            this.db.xadd(
+            await this.db.xadd(
               `${this.key}-stream`,
               '*',
               'data',
@@ -252,8 +254,7 @@ export class Worker extends EventTarget {
         new CustomEvent('complete', {
           detail: {
             job: {
-              id: jobEntry.id,
-              ...jobEntry,
+                  ...jobEntry,
             },
           },
         }),

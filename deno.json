@@ -1,6 +1,6 @@
 {
   "name": "@leotermine/redismq",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A simple and efficient job queue system for Deno, Node.js, and Bun. Built on Redis, it offers high-performance task scheduling and processing.",
   "license": "MIT",
   "repository": {

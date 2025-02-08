@@ -74,7 +74,7 @@ export interface JobOptions extends BaseJobOptions {
 
 // Job data and entries
 export interface JobData {
-  messageId?: string;
+  messageId: string;
   id: string;
   name: string;
   priority: number;
