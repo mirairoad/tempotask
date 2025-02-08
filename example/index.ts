@@ -1,11 +1,11 @@
-import { JobQueueManager } from "../src/mod.ts";
-import { Redis } from "ioredis";
+import { JobQueueManager } from '../src/mod.ts';
+import { Redis } from 'ioredis';
 
 // import crons
-import helloWorld from "./crons/hello-world.ts";
-import startScheduler from "./scheduler/start.ts";
-import multiJobs from "./crons/multi-jobs.ts";
-import onRequest from "./scheduler/onrequest.ts";
+import helloWorld from './crons/hello-world.ts';
+import startScheduler from './scheduler/start.ts';
+import multiJobs from './crons/multi-jobs.ts';
+import onRequest from './scheduler/onrequest.ts';
 
 // Create Redis Option
 const redisOption = {
@@ -19,9 +19,9 @@ const redisOption = {
 
 const client = new Redis(redisOption);
 
-const contextApp = {} // this can be anything like a server instance / store / even a mongowrapper to do calls to db
+const contextApp = {}; // this can be anything like a server instance / store / even a mongowrapper to do calls to db
 
-const app = await JobQueueManager.init(client, contextApp, 1);
+const app = JobQueueManager.init(client, contextApp, 1);
 
 // register jobs
 app.registerJob(helloWorld); // cron
