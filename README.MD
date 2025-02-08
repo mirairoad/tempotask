@@ -1,143 +1,126 @@
 # Redis-MQ
 
-A lightweight message queue system built on Redis, supporting cron jobs and one-off tasks.
+A lightweight, non-blocking job queue system inspired by BullMQ, built on Redis Streams. Specializes in both cron jobs and one-off tasks with decoupled architecture for maximum flexibility and performance.
 
-## Installation
+## Core Design Principles
 
-### Deno (Native JSR Support)
-```typescript
-import { QueueManager } from "jsr:@leotermine/redismq@0.1.0";
-```
+### 🎯 Non-Blocking Architecture
+- Fully asynchronous job processing
+- Decoupled producers and consumers
+- Independent worker processes
+- No inter-process locking
+- Efficient resource utilization
 
-### Node.js (via JSR's npm compatibility layer)
-First, create or update your `.npmrc` file:
-```
-@jsr:registry=https://npm.jsr.io
-```
+### ⚡ Dual Job Support
+- **Cron Jobs**: Schedule recurring tasks with cron patterns
+- **One-off Tasks**: Execute single tasks on demand
+- Mix both types in the same queue
+- Independent job scheduling
+- Flexible job management
 
-Then install:
-```bash
-# Using npm
-npm install @leotermine/redismq
+### 🔄 Decoupled Components
+- Separate job producers and consumers
+- Independent worker processes
+- Scalable architecture
+- Easy horizontal scaling
+- Process isolation
 
-# Using yarn
-yarn add @leotermine/redismq
-
-# Using pnpm (recommended for best dependency resolution)
-pnpm add @leotermine/redismq
-```
+### 🚀 Key Features
+- **Non-blocking Operations**: Asynchronous job processing
+- **Cron Support**: Schedule recurring jobs with cron patterns
+- **One-off Tasks**: Execute tasks on demand
+- **Built-in Concurrency**: Multiple workers process jobs simultaneously
+- **Stream-based**: Redis Streams for reliable message delivery
+- **Event System**: Track job completion and failures
 
 ## Quick Start
 
 ```typescript
-import { QueueManager } from "@leotermine/redismq";
-import { Redis } from "ioredis";
+import { QueueManager } from '@leotermine/redismq';
+import { Redis } from 'ioredis';
 
-// 1. Configure Redis
-const redisConfig = {
-  port: 6379,
-  host: 'localhost', // or the host in use
-  username: '',
-  password: '',
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-};
+// Initialize Redis and Queue Manager
+const client = new Redis();
+const app = QueueManager.init(client, {}, 5); // 5 concurrent jobs
 
-// 2. Initialize Redis client
-const client = new Redis(redisConfig);
-
-// 3. Initialize Queue Manager
-const contextApp = {}; // Optional context passed to job handlers
-const app = QueueManager.init(client, contextApp, 1); // Last param is concurrency
-
-// 4. Define a job
-const myJob = {
-  path: 'category/job-name', // Must follow 'category/name' format
-  run: (ctx, job) => {
-    console.log('Job running!', job);
+// Define a cron job
+const cronJob = {
+  path: 'tasks/recurring',
+  run: async (ctx, job) => {
+    console.log('Running scheduled task:', job.id);
   },
   options: {
     repeat: {
-      pattern: '* * * * *' // Cron pattern (optional)
-    },
-    attempts: 3 // Retry attempts (optional)
+      pattern: '*/5 * * * *', // Every 5 minutes
+    }
   }
 };
 
-// 5. Register job
-app.registerJob(myJob);
+// Define a one-off task
+const oneOffTask = {
+  path: 'tasks/single',
+  run: async (ctx, job) => {
+    console.log('Running one-off task:', job.id);
+  }
+};
 
-// 6. Start processing
+// Register jobs
+app.registerJob(cronJob);
+app.registerJob(oneOffTask);
+
+// Start processing in non-blocking way
 app.processJobs();
 
-// 7. Add one-off job (optional)
-app.addJob('category/job-name', {
-  data: 'your-data'
-}, {
-  attempts: 3
+// Add a one-off task on demand
+await app.addJob('tasks/single', { 
+  data: 'some data'
+});
+```
+
+## Worker Management
+
+```typescript
+// Create independent workers
+const worker = queue.createWorker(handler, {
+  concurrency: 5,
+  pollIntervalMs: 1000,
+});
+
+// Non-blocking event handling
+worker.addEventListener('complete', (event) => {
+  console.log('Job completed:', event.detail);
 });
 ```
 
 ## Job Types
 
-### Cron Jobs
 ```typescript
-const cronJob = {
-  path: 'crons/hello-world',
-  run: (ctx, job) => {
-    console.log("Running on schedule");
-  },
+// Cron Job Definition
+interface CronJob {
+  path: string;
+  run: (ctx: any, job: any) => Promise<void>;
   options: {
     repeat: {
-      pattern: "* * * * *" // Runs every minute
-    }
-  }
-};
-```
-
-### One-off Jobs
-```typescript
-const oneOffJob = {
-  path: 'tasks/send-email',
-  run: (ctx, job) => {
-    console.log("Running once");
-  }
-};
-```
-
-## API Reference
-
-### QueueManager
-- `init(redisClient, context, concurrency)`: Initialize queue manager
-- `registerJob(job)`: Register a new job type
-- `addJob(path, data, options)`: Add a job instance
-- `processJobs()`: Start processing jobs
-- `getAllJobs()`: Get all jobs in queues
-
-### Job Options
-```typescript
-interface JobOptions {
-  repeat?: {
-    pattern: string;    // Cron pattern
+      pattern: string; // Cron pattern
+    };
   };
-  attempts?: number;    // Retry attempts
-  _id?: string;        // Custom job ID
-  priority?: number;    // Job priority
-  delayUntil?: Date;   // Delay execution
+}
+
+// One-off Task Definition
+interface Task {
+  path: string;
+  run: (ctx: any, job: any) => Promise<void>;
 }
 ```
 
-## Coming Soon: Dashboard UI 🚀
+## Why Redis-MQ?
 
-A web-based dashboard is under development that will provide:
-- Real-time queue monitoring
-- Job status tracking and management
-- Performance metrics and analytics
-- Failed job inspection and retry capabilities
-- Cron job schedule management
-- Queue pause/resume controls
-
-Stay tuned for this powerful addition to Redis-MQ!
+- **Non-blocking**: Fully asynchronous operations
+- **Flexible**: Supports both cron and one-off tasks
+- **Decoupled**: Independent producers and consumers
+- **Scalable**: Easy horizontal scaling
+- **Modern**: Full TypeScript support
+- **Lightweight**: Minimal dependencies
 
 ## Runtime Support
 
@@ -147,18 +130,14 @@ Stay tuned for this powerful addition to Redis-MQ!
 - ✅ **Cloudflare Workers**: Compatible through Node.js compatibility
 - ✅ **Edge Functions**: Compatible through Node.js compatibility
 
-## Areas for Potential Improvement
-
-🔹 **Performance Optimization**
-Instead of polling every 3s (pollIntervalMs), consider using Redis Streams (XADD, XREADGROUP) or Pub/Sub for real-time job notifications, reducing unnecessary queries.
-Jobs are fetched using SCAN in #processJobsLoop(). While better than KEYS, sorted sets (ZSET) with timestamps might be more efficient.
-
-🔹 **Observability & Monitoring**
-Adding metrics collection (e.g., job success/failure rates, queue length).
-Implementing structured logging (e.g., using pino or winston for logs).
-
-🔹 **Backpressure Handling**
-If jobs arrive faster than they are processed, it could implement rate limiting or job deduplication before adding to the queue.
+## Coming Soon
+- 📊 Real-time monitoring dashboard
+- 📈 Performance metrics and analytics
+- 🔍 Dead letter queue management
+- 🔄 Advanced retry strategies
+- 🎯 Job prioritization improvements
+- ⏰ Delayed job execution
+- 🔁 Job retry mechanisms
 
 ## License
 

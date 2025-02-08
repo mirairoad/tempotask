@@ -1,13 +1,17 @@
 export default {
-    path: 'crons/hello-world',
-    run: (ctx: unknown, job: unknown) => {
-        console.log("Hello World from cron-queue");
-        // throw new Error("Hello World from cron-queue");
+  path: 'crons/hello-world',
+  run: (ctx: unknown, job: unknown) => {
+    console.log(
+      '%c- running hello-world.ts from cron-queue',
+      'color: white; background-color: red;',
+    );
+  },
+  options: {
+    repeat: {
+      pattern: '*/5 * * * * *', // every 2 minutes
     },
-    options: {
-        repeat: {
-            pattern: "* * * * *",
-        },
-        // attempts: 3,
-    }
-}
+    retryCount: 3,
+    retryDelayMs: 15000,
+    delayUntil: new Date(Date.now() + 6000000),
+  },
+};
