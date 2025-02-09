@@ -55,9 +55,6 @@ export class Worker extends EventTarget {
    */
   readonly #activeJobs = new Set<Promise<void>>();
 
-  sleep = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-  
   /**
    * Constructs a new worker for the given queue.
    *
