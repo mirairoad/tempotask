@@ -375,7 +375,7 @@ export class Worker extends EventTarget {
       );
     } catch (err: any) {
       // Ignore error if group already exists
-      if (!err.message.includes('BUSYGROUP')) {
+      if (!err?.message?.includes('BUSYGROUP')) {
         console.error('Error creating consumer group:', err);
         throw err;
       }

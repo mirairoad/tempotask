@@ -140,21 +140,24 @@ export interface WorkerEvent extends Event {
 }
 
 export type JobsOptions = {
+  repeat?: {
+    pattern: string;
+    tz?: string;
+  };
   attempts?: number;
   backoff?: {
     type: 'fixed' | 'exponential';
     delay: number;
   };
-  removeOnComplete?: boolean;
-  removeOnFail?: boolean;
-  repeat?: {
-    pattern: string;
-    tz?: string;
-  };
 };
 
-export type CronJobType = {
+export interface CronJobType {
   path: string;
-  run: (ctx: unknown, job: unknown) => void;
-  options?: JobsOptions;
-};
+  run: (ctx: any, job: unknown) => void | Promise<void>;
+  options?: {
+    repeat?: {
+      pattern: string;
+    };
+    _id?: string;
+  };
+}
