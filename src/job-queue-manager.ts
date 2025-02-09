@@ -8,10 +8,6 @@ import {
 import { parseCronExpression } from 'cron-schedule';
 import { Queue } from './queue.ts';
 import { Worker } from './worker.ts';
-import config from './config.ts';
-
-const { STREAM_NAME, CONSUMER_GROUP } = config;
-
 export class JobQueueManager {
   private static instance: JobQueueManager;
   private queues: { [key: string]: { [key: string]: Queue } } = {};

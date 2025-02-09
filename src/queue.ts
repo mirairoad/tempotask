@@ -1,19 +1,15 @@
 import {
-  CronJobType,
+  // CronJobType,
   JobData,
-  JobEntry,
+  // JobEntry,
   JobHandler,
   JobOptions,
   PushJob,
   RedisConnection,
   WorkerOptions,
 } from './types.ts';
-import { delay, genJobId, isRedisConnection } from './utils.ts';
+import { genJobId, isRedisConnection } from './utils.ts';
 import { Worker } from './worker.ts';
-import config from './config.ts';
-
-const JOBS_KEY = 'jobs' as const;
-const { STREAM_NAME, CONSUMER_GROUP } = config;
 
 export class Queue {
   readonly db: RedisConnection;
@@ -29,10 +25,31 @@ export class Queue {
     this.key = key;
   }
 
+  private async ensureConsumerGroup(): Promise<void> {
+    try {
+      // Create the stream and consumer group if they don't exist
+      await this.db.xgroup('CREATE', 
+        `${this.key}-stream`, 
+        'workers', 
+        '0', 
+        'MKSTREAM'
+      );
+    } catch (err: any) {
+      // Ignore error if group already exists
+      if (!err.message.includes('BUSYGROUP')) {
+        console.error('Error creating consumer group:', err);
+        throw err;
+      }
+    }
+  }
+
   async pushJob(
     state: PushJob,
     options: JobOptions = {},
   ): Promise<unknown> {
+    // Ensure consumer group exists before pushing jobs
+    await this.ensureConsumerGroup();
+
     const extendedOptions = {
       priority: -0,
       delayUntil: new Date(),

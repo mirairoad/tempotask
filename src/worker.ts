@@ -10,10 +10,6 @@ import {
   WorkerOptions,
 } from './types.ts';
 import { delay, genJobId, isRedisConnection, retry } from './utils.ts';
-import config from './config.ts';
-import { join } from 'node:path';
-
-const { CONSUMER_GROUP } = config;
 export class Worker extends EventTarget {
   /**
    * Redis client to use for accessing the queue.
@@ -237,7 +233,7 @@ export class Worker extends EventTarget {
       // await this.db.xdel(`${this.key}-stream`, jobEntry.messageId);
       await this.db.xack(
         `${this.key}-stream`,
-        CONSUMER_GROUP,
+        'workers',
         jobEntry.messageId
       );
       await this.db.hset(
@@ -368,17 +364,38 @@ export class Worker extends EventTarget {
     this.#processingController = new AbortController();
   }
 
+  private async ensureConsumerGroup(): Promise<void> {
+    try {
+      // Create the stream and consumer group if they don't exist
+      await this.db.xgroup('CREATE', 
+        `${this.key}-stream`, 
+        'workers', 
+        '0', 
+        'MKSTREAM'
+      );
+    } catch (err: any) {
+      // Ignore error if group already exists
+      if (!err.message.includes('BUSYGROUP')) {
+        console.error('Error creating consumer group:', err);
+        throw err;
+      }
+    }
+  }
+
   private async readQueueStream(
     queueName: string,
     count: number = 200,
     block: number = 5000,
   ): Promise<Array<JobData>> {
+    // Ensure consumer group exists before reading
+    await this.ensureConsumerGroup();
+    
     const consumerId = `worker-${Math.random().toString(36).substring(2, 15)}`;
     
     try {
       const jobs = await this.db.xreadgroup(
         'GROUP', 
-        CONSUMER_GROUP, 
+        'workers', 
         consumerId,
         'COUNT',
         count,
