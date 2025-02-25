@@ -6,7 +6,6 @@ export default {
       'color: white; background-color: blue;',
     );
     setTimeout(() => {
-      console.log('delayed 5 secs');
     }, 5000);
   },
   options: {

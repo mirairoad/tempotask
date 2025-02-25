@@ -15,8 +15,14 @@ export class HonoAdaptor {
   }
 
   init() {
+    // Dashboard routes
+    this.router.get('/admin/jobs', this.redirectToDefaultQueue());
+    this.router.get('/admin/jobs/:queue', this.redirectToDefaultTab());
+    this.router.get('/admin/jobs/:queue/:tab', this.getHTML());
+    this.router.get('/admin/jobs/:queue/:tab/:id', this.redirectToDefaultSubtab());
+    this.router.get('/admin/jobs/:queue/:tab/:id/:subtab', this.getHTML());
+    
     // API endpoints
-    this.router.get('/admin/jobs', this.getHTML());
     this.router.get('/admin/api/jobs', async (c) => c.json(await this.jobQueueManager.getJobsForUI()));
     this.router.post('/admin/api/queue/:name/pause', this.pauseQueueController());
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
@@ -26,10 +32,41 @@ export class HonoAdaptor {
     return this.router;
   }
 
-  getHTML() {
+  private redirectToDefaultQueue() {
+    return async (c: Context) => {
+      const queues = await this.jobQueueManager.getJobsForUI();
+      const defaultQueue = queues[0]?.name;
+      if (!defaultQueue) {
+        return c.text('No queues available', 404);
+      }
+      return c.redirect(`/admin/jobs/${defaultQueue}`);
+    };
+  }
+
+  private redirectToDefaultTab() {
     return (c: Context) => {
+      const { queue } = c.req.param();
+      return c.redirect(`/admin/jobs/${queue}/latest`);
+    };
+  }
+
+  private redirectToDefaultSubtab() {
+    return (c: Context) => {
+      const { queue, tab, id } = c.req.param();
+      return c.redirect(`/admin/jobs/${queue}/${tab}/${id}/information`);
+    };
+  }
+
+  getHTML() {
+    return async (c: Context) => {
+      const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
       const fileHtml = Deno.readTextFileSync('./src/client/index.html');
-      const html = fileHtml.replace('{{title}}', this.title);
+      const html = fileHtml
+        .replace('{{title}}', this.title)
+        .replace('{{selectedQueue}}', queue)
+        .replace('{{selectedTab}}', tab)
+        .replace('{{selectedJobId}}', id || '')
+        .replace('{{selectedSubtab}}', subtab);
       return c.html(html);
     };
   }

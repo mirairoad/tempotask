@@ -3,6 +3,9 @@
   <head>
     <title>{{title}}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
     <style>
       .sidemenu {
         width: 250px;
@@ -313,44 +316,164 @@
         background: white;
         z-index: 1;
       }
+
+      .job-row {
+        cursor: pointer;
+      }
+      .job-row:hover {
+        background-color: #f5f5f5;
+      }
+      .job-detail pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 500px;
+        overflow-y: auto;
+      }
+
+      .job-detail .modal-card {
+        width: 80vw;
+        max-height: 90vh;
+      }
+      
+      .job-detail pre {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: calc(80vh - 200px);
+        overflow-y: auto;
+      }
+      
+      .job-detail .tab-content {
+        display: none;
+        padding: 1rem;
+      }
+      
+      .job-detail .tab-content.is-active {
+        display: block;
+      }
+
+      .job-detail pre code {
+        padding: 1em;
+        border-radius: 6px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      
+      .job-detail .tab-content {
+        background: #f5f5f5;
+        border-radius: 6px;
+        margin-top: 1rem;
+      }
+
+      .job-detail .log-entry {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        padding: 1rem;
+      }
+      
+      .job-detail .log-entry:last-child {
+        margin-bottom: 0;
+      }
+      
+      .job-detail .log-entry pre {
+        margin: 0;
+        background: none;
+      }
+      
+      .job-detail .log-entry code {
+        background: none;
+        padding: 0;
+        color: inherit;  /* Use theme colors instead of forcing a color */
+      }
+      
+      .job-detail .tab-content {
+        background: #f5f5f5;
+        border-radius: 6px;
+        margin-top: 1rem;
+        padding: 1rem;
+      }
+
+      .timeline-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+      }
+      
+      .timeline-item {
+        display: flex;
+        gap: 2rem;
+      }
+      
+      .timeline-marker {
+        min-width: 180px;
+        padding-right: 1rem;
+        border-right: 2px solid #dbdbdb;
+      }
+      
+      .timeline-date {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .timeline-date .time {
+        font-weight: bold;
+      }
+      
+      .timeline-date .date {
+        font-size: 0.8rem;
+        color: #999;
+      }
+      
+      .timeline-content {
+        flex: 1;
+      }
+      
+      .log-entry {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 1rem;
+      }
     </style>
   </head>
   <body>
     <div class="columns is-gapless" style="height: 100vh;">
       <div class="column is-narrow">
         <div class="sidemenu">
-          <h2 class="title is-4 mb-4">Queues</h2>
+        <h2 class="title is-4 mb-4">Queues</h2>
           <ul class="queue-list"></ul>
-        </div>
       </div>
-
+    </div>
+      
       <div class="column">
         <div class="section">
           <div class="tabs status-tabs">
-            <ul>
-              <li class="is-active">
-                <a class="status-tab" data-status="latest">Latest <span class="count">(0)</span></a>
-              </li>
+        <ul>
+          <li class="is-active">
+            <a class="status-tab" data-status="latest">Latest <span class="count">(0)</span></a>
+          </li>
               <li><a class="status-tab" data-status="waiting">Waiting <span class="count">(0)</span></a></li>
               <li><a class="status-tab" data-status="processing">Processing <span class="count">(0)</span></a></li>
               <li><a class="status-tab" data-status="completed">Completed <span class="count">(0)</span></a></li>
               <li><a class="status-tab" data-status="failed">Failed <span class="count">(0)</span></a></li>
               <li><a class="status-tab" data-status="delayed">Delayed <span class="count">(0)</span></a></li>
-            </ul>
-          </div>
+        </ul>
+      </div>
 
           <table class="table is-fullwidth">
-            <thead>
-              <tr>
+          <thead>
+            <tr>
                 <th>Name</th>
                 <th>Status</th>
                 <th>Schedule</th>
                 <th>Last Run</th>
                 <th>Actions</th>
-              </tr>
-            </thead>
+            </tr>
+          </thead>
             <tbody id="jobsList"></tbody>
-          </table>
+        </table>
 
           <div class="pagination">
             <button id="prevPage" class="button">Previous</button>
@@ -358,38 +481,58 @@
             <button id="nextPage" class="button">Next</button>
             <select id="pageSizeSelect" class="select">
               <option value="10">10 per page</option>
-              <option value="25">25 per page</option>
-              <option value="50" selected>50 per page</option>
-              <option value="100">100 per page</option>
-            </select>
-          </div>
+            <option value="25">25 per page</option>
+            <option value="50" selected>50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
         </div>
       </div>
     </div>
 
     <div class="job-detail modal" id="jobDetail">
       <div class="modal-background"></div>
-      <div class="modal-card job-detail-content">
+      <div class="modal-card">
         <header class="modal-card-head">
           <p class="modal-card-title" id="jobDetailTitle">Job Details</p>
           <button class="delete close-button" aria-label="close"></button>
         </header>
         <section class="modal-card-body">
-          <pre id="jobDetailData"></pre>
+          <div class="tabs">
+            <ul>
+              <li class="is-active"><a data-tab="info">Information</a></li>
+              <li><a data-tab="logs">Logs</a></li>
+              <li><a data-tab="errors">Errors</a></li>
+            </ul>
+          </div>
+          <div id="jobInfo" class="tab-content is-active">
+            <pre><code id="jobDetailData"></code></pre>
+          </div>
+          <div id="jobLogs" class="tab-content">
+            <div class="timeline-container" id="logsContainer"></div>
+          </div>
+          <div id="jobErrors" class="tab-content">
+            <div class="timeline-container" id="errorsContainer"></div>
+          </div>
         </section>
       </div>
     </div>
 
     <script>
+      // Add near the top of your script
+      const selectedQueue = '{{selectedQueue}}';
+      
       // State management
       const state = {
         queues: new Map(),
         currentQueue: null,
-        currentStatus: 'latest',
+        currentStatus: '{{selectedTab}}',
         currentPage: 1,
         pageSize: 50,
         jobsCache: new Map(),
-        lastUpdate: 0
+        lastUpdate: 0,
+        selectedJobId: '{{selectedJobId}}' || null,
+        selectedSubtab: '{{selectedSubtab}}' || 'information'
       };
 
       // SVG Icons
@@ -489,13 +632,13 @@
           }
         });
       }
-
+      
       // Initialize polling
       async function initPolling() {
         await fetchAndUpdateData();
         setInterval(fetchAndUpdateData, 1000);
       }
-
+      
       // Fetch data and update UI efficiently
       async function fetchAndUpdateData() {
         try {
@@ -507,7 +650,7 @@
             state.queues = new Map(queues.map(q => [q.name, q]));
             renderQueueList();
           }
-
+      
           if (state.currentQueue) {
             const currentQueueData = queues.find(q => q.name === state.currentQueue);
             if (currentQueueData) {
@@ -518,7 +661,7 @@
           console.error('Failed to fetch data:', err);
         }
       }
-
+      
       // Check if queues structure changed
       function hasQueuesChanged(newQueues) {
         if (state.queues.size !== newQueues.length) return true;
@@ -561,55 +704,20 @@
       
       // Update jobs data efficiently
       function updateJobsData(queueData) {
-        const jobs = state.currentStatus === 'latest' 
-          ? Object.values(queueData.jobs).flat()
-          : queueData.jobs[state.currentStatus] || [];
-      
-        // Update cache and check for changes
-        const hasChanges = updateJobsCache(jobs);
-        
-        if (hasChanges) {
-          renderJobsTable(jobs);
-          updateStatusCounts(queueData.jobs);
-        }
-      }
-      
-      // Update jobs cache and check for changes
-      function updateJobsCache(jobs) {
-        let hasChanges = false;
-        const newCache = new Map();
-        
-        jobs.forEach(job => {
-          const cacheKey = `${job.id}:${job.status}`;
-          const cachedJob = state.jobsCache.get(cacheKey);
-          
-          if (!cachedJob || 
-              cachedJob.lastRun !== job.lastRun || 
-              cachedJob.status !== job.status) {
-            hasChanges = true;
-          }
-          
-          newCache.set(cacheKey, job);
-        });
-        
-        // Check for removed jobs
-        if (state.jobsCache.size !== newCache.size) {
-          hasChanges = true;
-        }
-        
-        if (hasChanges) {
-          state.jobsCache = newCache;
-        }
-        
-        return hasChanges;
-      }
-      
-      // Render jobs table
-      function renderJobsTable(jobs) {
         const tbody = document.getElementById('jobsList');
         if (!tbody) return;
       
-        // Sort jobs by lastRun or addedAt
+        let jobs = [];
+        if (state.currentStatus === 'latest') {
+          jobs = Object.values(queueData.jobs).flat();
+        } else {
+          jobs = queueData.jobs[state.currentStatus] || [];
+        }
+
+        // Update status counts
+          updateStatusCounts(queueData.jobs);
+
+        // Sort jobs by time
         jobs.sort((a, b) => {
           const timeA = a.lastRun || a.addedAt;
           const timeB = b.lastRun || b.addedAt;
@@ -621,12 +729,13 @@
         const endIndex = startIndex + state.pageSize;
         const pageJobs = jobs.slice(startIndex, endIndex);
       
+        // Render jobs
         const fragment = document.createDocumentFragment();
-        
         pageJobs.forEach(job => {
           const tr = document.createElement('tr');
           tr.className = 'job-row';
           tr.dataset.jobId = job.id;
+          tr.style.cursor = 'pointer';
           
           tr.innerHTML = `
             <td>${job.state.name}</td>
@@ -647,7 +756,6 @@
       
         tbody.innerHTML = '';
         tbody.appendChild(fragment);
-        
         updatePagination(jobs.length);
       }
       
@@ -655,11 +763,13 @@
       function attachQueueHandlers() {
         const queueItems = document.querySelectorAll('.queue-item');
         queueItems.forEach(item => {
-          // Queue selection handler
           item.addEventListener('click', (e) => {
-            if (e.target.closest('.toggle-button')) return; // Don't trigger on button click
+            if (e.target.closest('.toggle-button')) return;
             
-            state.currentQueue = item.dataset.queue;
+            const queueName = item.dataset.queue;
+            window.history.pushState({}, '', `/admin/jobs/${queueName}/${state.currentStatus}`);
+            
+            state.currentQueue = queueName;
             state.currentPage = 1;
             
             // Update active state
@@ -706,14 +816,16 @@
           tab.addEventListener('click', (e) => {
             e.preventDefault();
             
+            const status = tab.dataset.status;
+            window.history.pushState({}, '', `/admin/jobs/${state.currentQueue}/${status}`);
+            
             // Update active state
             document.querySelectorAll('.status-tab').forEach(t => 
               t.parentElement.classList.remove('is-active')
             );
             tab.parentElement.classList.add('is-active');
             
-            // Update state and refresh data
-            state.currentStatus = tab.dataset.status;
+            state.currentStatus = status;
             state.currentPage = 1;
             
             const queueData = state.queues.get(state.currentQueue);
@@ -796,13 +908,274 @@
         });
       }
 
-      // Initialize all handlers
-      document.addEventListener('DOMContentLoaded', () => {
+      // Update showJobDetail to handle errors separately
+      async function showJobDetail(jobId) {
+        try {
+          // Update URL without reload
+          window.history.pushState(
+            {}, 
+            '', 
+            `/admin/jobs/${state.currentQueue}/${state.currentStatus}/${jobId}/${state.selectedSubtab}`
+          );
+          
+          state.selectedJobId = jobId;
+          
+          // Wait for initial data load if needed
+          if (!state.queues.size) {
+            await fetchAndUpdateData();
+          }
+          
+          // Get job from current queue data
+          const queueData = state.queues.get(state.currentQueue);
+          if (!queueData) {
+            throw new Error('Queue not found');
+          }
+          
+          const job = Object.values(queueData.jobs)
+            .flat()
+            .find(j => j.id === jobId);
+          
+          if (!job) {
+            throw new Error('Job not found');
+          }
+          
+          // Update modal title
+          document.getElementById('jobDetailTitle').textContent = 
+            `${job.id?.replace(`queues:${state.currentQueue}:`, '')}`;
+          
+          // Format job data without logs and errors
+          const jobInfo = { ...job };
+          delete jobInfo.logs;
+          delete jobInfo.errors;
+          
+          // Format and highlight JSON data
+          const formattedData = JSON.stringify(jobInfo, null, 2);
+          document.getElementById('jobDetailData').textContent = formattedData;
+          
+          // Format logs with timeline
+          const formattedLogs = job.logs?.map((log, index) => {
+            try {
+              const logObj = typeof log === 'string' ? JSON.parse(log) : log;
+              const timestamp = logObj.timestamp || Date.now();
+              const date = new Date(timestamp);
+              
+              return {
+                time: timestamp,
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${date.toLocaleTimeString()}</span>
+                        <span class="date">${date.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry">
+                        <pre><code class="language-json">${JSON.stringify(logObj, null, 2)}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            } catch {
+              const now = new Date();
+              return {
+                time: now.getTime(),
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${now.toLocaleTimeString()}</span>
+                        <span class="date">${now.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry">
+                        <pre><code>${typeof log === 'object' ? JSON.stringify(log, null, 2) : log}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            }
+          }).sort((a, b) => a.time - b.time) || [];
+
+          // Format errors with timeline
+          const formattedErrors = job.errors?.map((error, index) => {
+            try {
+              const errorObj = typeof error === 'string' ? JSON.parse(error) : error;
+              const timestamp = errorObj.timestamp || Date.now();
+              const date = new Date(timestamp);
+              
+              return {
+                time: timestamp,
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${date.toLocaleTimeString()}</span>
+                        <span class="date">${date.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry">
+                        <pre><code class="language-json">${JSON.stringify(errorObj, null, 2)}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            } catch {
+              const now = new Date();
+              return {
+                time: now.getTime(),
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${now.toLocaleTimeString()}</span>
+                        <span class="date">${now.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry">
+                        <pre><code>${typeof error === 'object' ? JSON.stringify(error, null, 2) : error}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            }
+          }).sort((a, b) => a.time - b.time) || [];
+
+          // Update containers with formatted content
+          document.getElementById('logsContainer').innerHTML = 
+            formattedLogs.map(item => item.html).join('') || 
+            '<div class="timeline-item"><div class="timeline-content">No logs available</div></div>';
+
+          document.getElementById('errorsContainer').innerHTML = 
+            formattedErrors.map(item => item.html).join('') || 
+            '<div class="timeline-item"><div class="timeline-content">No errors reported</div></div>';
+          
+          // Show modal and set initial tab
+          document.getElementById('jobDetail').classList.add('is-active');
+          
+          // Set active tab from state
+          const tabElement = document.querySelector(`[data-tab="${state.selectedSubtab}"]`);
+          if (tabElement) {
+            document.querySelectorAll('.job-detail .tabs li').forEach(t => 
+              t.classList.remove('is-active')
+            );
+            tabElement.parentElement.classList.add('is-active');
+            
+            document.querySelectorAll('.job-detail .tab-content').forEach(c => 
+              c.classList.remove('is-active')
+            );
+            document.getElementById(`job${state.selectedSubtab.charAt(0).toUpperCase() + state.selectedSubtab.slice(1)}`)
+              .classList.add('is-active');
+          }
+          
+          // Apply syntax highlighting
+          document.querySelectorAll('.job-detail pre code').forEach(block => {
+            hljs.highlightElement(block);
+          });
+        } catch (err) {
+          console.error('Failed to load job details:', err);
+        }
+      }
+
+      // Update initialization to handle direct job detail access
+      document.addEventListener('DOMContentLoaded', async () => {
+        if (selectedQueue) {
+          state.currentQueue = selectedQueue;
+        }
+        
+        // Initial data load
+        await fetchAndUpdateData();
+        
+        // Rest of initialization
+        const initialTab = document.querySelector(`[data-status="${state.currentStatus}"]`);
+        if (initialTab) {
+          document.querySelectorAll('.status-tab').forEach(t => 
+            t.parentElement.classList.remove('is-active')
+          );
+          initialTab.parentElement.classList.add('is-active');
+        }
+
         attachStatusHandlers();
         attachPaginationHandlers();
         attachJobActionHandlers();
+        attachJobHandlers();
         initPolling();
+
+        if (state.selectedJobId) {
+          await showJobDetail(state.selectedJobId);
+        }
       });
-    </script>
-  </body>
+
+      // Update queue selection to change URL
+      function selectQueue(queueName) {
+        window.location.href = `/admin/jobs/${queueName}`;
+      }
+
+      // Update job row click handler
+      function attachJobHandlers() {
+        document.getElementById('jobsList')?.addEventListener('click', async (e) => {
+          const jobRow = e.target.closest('.job-row');
+          if (jobRow && !e.target.closest('.job-actions')) {
+            const jobId = jobRow.dataset.jobId;
+            await showJobDetail(jobId);
+          }
+        });
+      }
+
+      // Update modal tab handlers
+      document.querySelector('.job-detail .tabs')?.addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-tab]');
+        if (tab) {
+          const tabName = tab.dataset.tab;
+          
+          // Update URL with subtab
+          window.history.pushState(
+            {}, 
+            '', 
+            `/admin/jobs/${state.currentQueue}/${state.currentStatus}/${state.selectedJobId}/${tabName}`
+          );
+          
+          state.selectedSubtab = tabName;
+          
+          // Update active tab
+          document.querySelectorAll('.job-detail .tabs li').forEach(t => 
+            t.classList.remove('is-active')
+          );
+          tab.parentElement.classList.add('is-active');
+          
+          // Show selected content
+          document.querySelectorAll('.job-detail .tab-content').forEach(c => 
+            c.classList.remove('is-active')
+          );
+          document.getElementById(`job${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`)
+            .classList.add('is-active');
+        }
+      });
+
+      // Update modal close handler
+      document.addEventListener('click', (e) => {
+        const modal = document.getElementById('jobDetail');
+        const closeButton = e.target.closest('.close-button');
+        const modalBackground = e.target.closest('.modal-background');
+
+        if (closeButton || modalBackground) {
+          modal.classList.remove('is-active');
+          window.history.pushState(
+            {}, 
+            '', 
+            `/admin/jobs/${state.currentQueue}/${state.currentStatus}`
+          );
+          state.selectedJobId = null;
+          state.selectedSubtab = 'information';
+        }
+      });
+      </script>
+    </body>
 </html>

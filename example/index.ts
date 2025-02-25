@@ -7,6 +7,7 @@ import startScheduler from './scheduler/start.ts';
 import multiJobs from './crons/multi-jobs.ts';
 import onRequest from './scheduler/onrequest.ts';
 
+const cpuCount = 1;
 // Create Redis Option
 const redisOption = {
   port: 6379,
@@ -21,17 +22,13 @@ const client = new Redis(redisOption);
 
 const contextApp = {}; // this can be anything like a server instance / store / even a mongowrapper to do calls to db
 
-const jqm = QueueManager.init(client as any, contextApp, 1);
+const jqm = QueueManager.init(client, contextApp, cpuCount);
 
 // register jobs
 jqm.registerJob(helloWorld); // cron
 jqm.registerJob(multiJobs); // cron
 jqm.registerJob(startScheduler); // cron
 jqm.registerJob(onRequest); // no cron
-
-// test
-// const activeJobs = await app.getAllJobs();
-// console.log(activeJobs)
 
 jqm.addJob('scheduler/onrequest', {
 }, {

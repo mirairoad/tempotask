@@ -426,19 +426,21 @@ export class Worker extends EventTarget {
 
   private async ensureConsumerGroup(): Promise<void> {
     try {
-      // Create the stream and consumer group if they don't exist
-      await this.db.xgroup('CREATE', 
+      await this.db.xgroup(
+        'CREATE', 
         `${this.key}-stream`, 
         'workers', 
         '0', 
         'MKSTREAM'
       );
-    } catch (err: any) {
-      // Ignore error if group already exists
-      if (!err?.message?.includes('BUSYGROUP')) {
-        console.error('Error creating consumer group:', err);
-        throw err;
+    } catch (err: unknown) {
+      // If group exists, that's fine - just continue
+      if (err instanceof Error && err.message.includes('BUSYGROUP')) {
+        return; // Group already exists, which is what we want
       }
+      // Only log and throw for other errors
+      console.error('Error creating consumer group:', err);
+      throw err;
     }
   }
 

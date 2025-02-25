@@ -10,6 +10,7 @@ import {
 import { parseCronExpression } from 'cron-schedule';
 import { Queue } from './queue.ts';
 import { Worker } from './worker.ts';
+import { json } from 'node:stream/consumers';
 export class QueueManager {
   private static instance: QueueManager;
   private queues: { [key: string]: { [key: string]: Queue } } = {};
@@ -203,7 +204,43 @@ export class QueueManager {
             repeatCount: job.repeatCount,
             repeatDelayMs: job.repeatDelayMs,
             retryCount: job.retryCount,
-            retryDelayMs: job.retryDelayMs
+            retryDelayMs: job.retryDelayMs,
+            timestamp: job.timestamp,
+            logs: [
+              // format json to logs and add /n
+              {
+                timestamp: new Date().toISOString(),
+                users: [
+                {
+                  id: 1,
+                  name: 'John Doe',
+                  email: 'john.doe@example.com'
+                },
+                {
+                  id: 2,
+                  name: 'Jane Doe',
+                  email: 'jane.doe@example.com'
+                }
+              ]
+            },
+            {
+              timestamp: new Date().toISOString(),
+              messages: [
+              {
+                id: 1,
+                message: 'notification sent to user 1'
+              },
+              {
+                id: 2,
+                message: 'notification sent to user 2'
+              }
+            ]
+          }
+            ],
+            errors: [
+              { timestamp: new Date().toISOString(), message:'something went wrong' },
+              { timestamp: new Date().toISOString(), message:'Restarting! File change detected: "/Users/leo/Private/typescript/redismq/src/libs/queue-manager.ts"'}
+            ]
         }));
 
         // Group jobs by queue and status
