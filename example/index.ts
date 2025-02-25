@@ -1,4 +1,4 @@
-import { JobQueueManager } from '../src/mod.ts';
+import { QueueManager } from '../src/mod.ts';
 import { Redis } from 'ioredis';
 
 // import crons
@@ -21,23 +21,23 @@ const client = new Redis(redisOption);
 
 const contextApp = {}; // this can be anything like a server instance / store / even a mongowrapper to do calls to db
 
-const app = JobQueueManager.init(client, contextApp, 1);
+const jqm = QueueManager.init(client as any, contextApp, 1);
 
 // register jobs
-app.registerJob(helloWorld); // cron
-app.registerJob(multiJobs); // cron
-app.registerJob(startScheduler); // cron
-app.registerJob(onRequest); // no cron
+jqm.registerJob(helloWorld); // cron
+jqm.registerJob(multiJobs); // cron
+jqm.registerJob(startScheduler); // cron
+jqm.registerJob(onRequest); // no cron
 
 // test
 // const activeJobs = await app.getAllJobs();
 // console.log(activeJobs)
 
-// app.addJob('scheduler/onrequest', {
-//   userId:['1234567890','1234567892'],
-// }, {
-//   _id:'2132321',
-//   attempts: 3,
-// });
+jqm.addJob('scheduler/onrequest', {
+}, {
+  attempts: 3,
+});
 
-app.processJobs();
+jqm.processJobs();
+
+export { jqm }

@@ -1,5 +1,7 @@
-import { JobQueueManager } from './job-queue-manager.ts';
-import { Queue } from './queue.ts';
-import { Worker } from './worker.ts';
+import { QueueManager } from './libs/queue-manager.ts';
+import { Queue } from './libs/queue.ts';
+import { Worker } from './libs/worker.ts';
+import { HonoAdaptor } from './adaptors/hono.adaptor.ts';
 
-export { JobQueueManager, Queue, Worker };
+
+export { QueueManager, HonoAdaptor, Queue, Worker };

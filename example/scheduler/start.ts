@@ -1,14 +1,16 @@
 export default {
   path: 'scheduler/start',
-  run: (ctx: unknown, job: unknown) => {
+  handler: (ctx: unknown, job: unknown) => {
     console.log(
-      '%c- running start.ts from scheduler-queue',
+      '%c- runs every 15 seconds',
       'color: white; background-color: yellow;',
     );
+    setTimeout(() => {
+    }, 2000);
   },
   options: {
     repeat: {
-      pattern: '*/10 * * * * *',
+      pattern: '*/15 * * * * *',
     },
   },
 };

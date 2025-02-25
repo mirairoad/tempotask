@@ -1,12 +1,16 @@
 {
   "version": "4",
   "specifiers": {
+    "jsr:@hono/hono@*": "4.7.0",
     "jsr:@p4sca1/cron-schedule@^5.0.3": "5.0.3",
     "npm:@types/node@*": "22.5.4",
     "npm:ioredis@5.4.1": "5.4.1",
     "npm:redis@4.6.4": "4.6.4_@redis+client@1.5.5"
   },
   "jsr": {
+    "@hono/hono@4.7.0": {
+      "integrity": "1eb10e1976d3dda22ab43115ecfa348a43cd17c8aea5c0039c9757ebded624f8"
+    },
     "@p4sca1/cron-schedule@5.0.3": {
       "integrity": "8272d8afe9169f38d870e66c59da9b1173fd9c644293f26d8e5e0b20d88cbf1f"
     }
@@ -128,7 +132,8 @@
     }
   },
   "redirects": {
-    "https://deno.land/std/async/mod.ts": "https://deno.land/std@0.224.0/async/mod.ts"
+    "https://deno.land/std/async/mod.ts": "https://deno.land/std@0.224.0/async/mod.ts",
+    "https://deno.land/std/http/server.ts": "https://deno.land/std@0.224.0/http/server.ts"
   },
   "remote": {
     "https://deno.land/std@0.224.0/assert/assert.ts": "09d30564c09de846855b7b071e62b5974b001bb72a4b797958fe0660e7849834",
@@ -142,7 +147,8 @@
     "https://deno.land/std@0.224.0/async/mux_async_iterator.ts": "8d960e951c7bf6cb682522c2ebf5bd3e738b27c6a7ac9500ab64d27054930972",
     "https://deno.land/std@0.224.0/async/pool.ts": "2b972e3643444b73f6a8bcdd19799a2d0821b28a45fbe47fd333223eb84327f0",
     "https://deno.land/std@0.224.0/async/retry.ts": "29025b09259c22123c599b8c957aeff2755854272954776dc9a5846c72ea4cfe",
-    "https://deno.land/std@0.224.0/async/tee.ts": "34373c58950b7ac5950632dc8c9908076abeefcc9032d6299fff92194c284fbd"
+    "https://deno.land/std@0.224.0/async/tee.ts": "34373c58950b7ac5950632dc8c9908076abeefcc9032d6299fff92194c284fbd",
+    "https://deno.land/std@0.224.0/http/server.ts": "f9313804bf6467a1704f45f76cb6cd0a3396a3b31c316035e6a4c2035d1ea514"
   },
   "workspace": {
     "dependencies": [

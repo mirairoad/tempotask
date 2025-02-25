@@ -7,9 +7,9 @@ import {
   RedisConnection,
   WorkerEvent,
   WorkerEventMap,
-  WorkerOptions,
-} from './types.ts';
-import { delay, genJobId, isRedisConnection, retry } from './utils.ts';
+  WorkerOptions
+} from '../types/index.ts';
+import { delay, isRedisConnection, retry } from '../utils/index.ts';
 export class Worker extends EventTarget {
   /**
    * Redis client to use for accessing the queue.
@@ -47,6 +47,11 @@ export class Worker extends EventTarget {
   #processingController = new AbortController();
 
   /**
+   * Cache of jobs.
+   */
+  cache: Map<string, number> = new Map<string, number>();
+
+  /**
    * Set of currently running jobs as promises.
    */
   readonly #activeJobs = new Set<Promise<void>>();
@@ -80,6 +85,7 @@ export class Worker extends EventTarget {
       lockIntervalMs: options.lockIntervalMs ?? 2_000,
       pollIntervalMs: options.pollIntervalMs ?? 3_000,
     };
+    this.cache = new Map<string, number>();
   }
 
   /**
@@ -120,8 +126,9 @@ export class Worker extends EventTarget {
         }
 
         // Check if queue is paused
-        const pausedKey = `${this.key}:paused`;
+        const pausedKey = `queues:${this.key}:paused`;
         const isPaused = await this.db.get(pausedKey);
+        // console.log('isPaused', isPaused);
         
         if (isPaused) {
           await delay(this.options.pollIntervalMs);
@@ -131,7 +138,7 @@ export class Worker extends EventTarget {
         try {
           // Get jobs from the stream using consumer group
           const jobs: JobData[] = await this.readQueueStream(this.key);
-          
+
           if (jobs.length === 0) {
             await delay(this.options.pollIntervalMs);
             continue;
@@ -157,15 +164,36 @@ export class Worker extends EventTarget {
 
             // Skip jobs that aren't ready yet
             if (jobDelay > now) {
-              // Return delayed job to stream for later processing
+              await delay(1000);
+              // await this.db.del(`queues:${this.key}:${job.id}:waiting`);
+              job.status = 'delayed';
+              // Use the original job timestamp instead of creating a new one
+              const cacheKey = `queues:${this.key}:${job.id}:${job.status}`;
+              
+              if (!this.cache.has(cacheKey)) {
+                // Store the original timestamp
+                this.cache.set(cacheKey, job.timestamp);
+                this.db.set(cacheKey, JSON.stringify(job));
+              }else if (job.timestamp !== this.cache.get(cacheKey)) {
+                this.cache.set(cacheKey, job.timestamp);
+                this.db.set(cacheKey, JSON.stringify(job));
+              }
+              // console.log('Caching timestamp:', job.timestamp, this.cache.get(cacheKey));
+
+              // Keep the original timestamp when re-adding to stream
               await this.db.xadd(
                 `${this.key}-stream`,
                 '*',
                 'data',
-                JSON.stringify(job)
+                JSON.stringify({
+                  ...job,
+                  // Don't update the timestamp, keep the original
+                  timestamp: job.timestamp 
+                })
               );
               continue;
             }
+            // console.log(`queues:${this.key}:${job.id}:${job.status}`)
 
             // Create a promise for this job's processing
             const jobPromise = (async () => {
@@ -195,53 +223,70 @@ export class Worker extends EventTarget {
 
   async #processJob(jobEntry: JobData): Promise<void> {
     try {
+      // Update status to processing
+      const processingData = {
+        ...jobEntry,
+        status: 'processing',
+        timestamp: Date.now()
+      };
+      
+      // Store processing state
+      const processingKey = `queues:${this.key}:${jobEntry.id}:${processingData.status}`;
+      await this.db.set(processingKey, JSON.stringify(processingData));
+      
+      // Update states hash
+      // const stateKey = `queues:${this.key}:${jobEntry.id}:states`;
+      // await this.db.hset(stateKey, processingData.status, JSON.stringify(processingData));
+
       // Process the job
-      await this.handler(
-        {
-          ...jobEntry,
+      await this.handler(processingData as JobData, async (job: Partial<JobData>) => {
+        await retry(async () => {
+          const updatedJob = {
+            ...job,
+            status:job.status ?? 'processing',
+            state: job.state ?? jobEntry.state,
+            delayUntil: job.delayUntil ?? jobEntry.delayUntil,
+            lockUntil: job.lockUntil ?? Date.now() + this.options.lockDurationMs,
+            repeatCount: job.repeatCount ?? jobEntry.repeatCount,
+            repeatDelayMs: job.repeatDelayMs ?? jobEntry.repeatDelayMs,
+            retryCount: job.retryCount ?? jobEntry.retryCount,
+            retryDelayMs: job.retryDelayMs ?? jobEntry.retryDelayMs,
+            lastRun: Date.now()
+          };
+          await this.db.xadd(
+            `${this.key}-stream`,
+            '*',
+            'data',
+            JSON.stringify(updatedJob),
+          );
+        });
+      },
+      {
+        stopProcessing: () => {
+          this.stopProcessing();
         },
-        async (job: Partial<JobData>) => {
-          await retry(async () => {
-
-            const updatedJob = {
-              state: job.state ?? jobEntry.state,
-              delayUntil: job.delayUntil ?? jobEntry.delayUntil,
-              lockUntil: job.lockUntil ??
-                new Date(Date.now() + this.options.lockDurationMs),
-              repeatCount: job.repeatCount ?? jobEntry.repeatCount,
-              repeatDelayMs: job.repeatDelayMs ?? jobEntry.repeatDelayMs,
-              retryCount: job.retryCount ?? jobEntry.retryCount,
-              retryDelayMs: job.retryDelayMs ?? jobEntry.retryDelayMs,
-            };
-            await this.db.xadd(
-              `${this.key}-stream`,
-              '*',
-              'data',
-              JSON.stringify(updatedJob),
-            );
-          });
-        },
-        {
-          stopProcessing: () => {
-            this.stopProcessing();
-          },
-        },
+      },
       );
 
-      // Job completed
-      // console.log(jobEntry)
-      // await this.db.xdel(`${this.key}-stream`, jobEntry.messageId);
-      await this.db.xack(
-        `${this.key}-stream`,
-        'workers',
-        jobEntry.messageId
-      );
-      await this.db.hset(
-        jobEntry.id,
-        'data',
-        JSON.stringify({ ...jobEntry, status: 'completed' }),
-      );
-      // console.log(await this.db.hgetall(jobEntry.id));
+      // Update to completed state
+      const completedData = {
+        ...jobEntry,
+        status: 'completed',
+        timestamp: Date.now()
+      };
+
+      // Store completed state
+      // const completedKey = `queues:${this.key}:${jobEntry.id}:${completedData.status}`;
+      // console.log('completedKey', completedKey);
+      // await this.db.set(completedKey, JSON.stringify(completedData));
+      
+      // Update states hash
+      // await this.db.hset(stateKey, completedData.status, JSON.stringify(completedData));
+
+      // Clean up processing state
+      // console.log('delete', processingKey)
+      // await this.db.del(processingKey);
+
       // Dispatch complete event
       this.dispatchEvent(
         new CustomEvent('complete', {
@@ -253,6 +298,10 @@ export class Worker extends EventTarget {
         }),
       );
 
+      // await this.db.del(`queues:${this.key}:${jobEntry.id}:processing`);
+      // await this.db.set(`queues:${this.key}:${jobEntry.id}:${crypto.randomUUID()}:completed`, JSON.stringify({ ...jobEntry, status: 'completed' }));
+
+
       // Handle job repetition
       if (
         jobEntry.repeatCount > 0 && jobEntry?.state?.options?.repeat?.pattern
@@ -263,15 +312,17 @@ export class Worker extends EventTarget {
 
         const newJob = {
           ...jobEntry,
-          lockUntil: cron.getNextDate(new Date()),
+          lockUntil: cron.getNextDate(new Date()).getTime(),
           delayUntil: jobEntry?.state?.options?.repeat?.pattern
-            ? cron.getNextDate(new Date())
-            : new Date(Date.now() + jobEntry.repeatDelayMs),
+            ? cron.getNextDate(new Date()).getTime()
+            : Date.now() + jobEntry.repeatDelayMs,
           repeatCount: jobEntry?.state?.options?.repeat?.pattern
             ? jobEntry.repeatCount
             : jobEntry.repeatCount - 1,
+          timestamp: Date.now(),
+          status: 'delayed'
         };
-// console.log(newJob)
+
         await this.db.xadd(
           `${this.key}-stream`,
           '*',
@@ -280,7 +331,15 @@ export class Worker extends EventTarget {
         );
       }
     } catch (error) {
-      console.log(`Job ${jobEntry.id}: Failed: ${error}`);
+      // Handle failed state
+      const failedData = {
+        ...jobEntry,
+        status: 'failed',
+        timestamp: Date.now()
+      };
+
+      const failedKey = `queues:${this.key}:${jobEntry.id}:${failedData.status}`;
+      await this.db.set(failedKey, JSON.stringify(failedData));
 
       // Dispatch error event
       this.dispatchEvent(
@@ -301,9 +360,10 @@ export class Worker extends EventTarget {
 
           const retryJob = {
             ...jobEntry,
-            delayUntil: new Date(Date.now() + jobEntry.retryDelayMs),
-            lockUntil: new Date(),
+            delayUntil: Date.now() + jobEntry.retryDelayMs,
+            lockUntil: Date.now(),
             retryCount: jobEntry.retryCount - 1,
+            retriedAttempts: jobEntry?.retriedAttempts + 1
           };
 
           await this.db.xadd(

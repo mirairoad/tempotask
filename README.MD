@@ -142,3 +142,10 @@ interface Task {
 ## License
 
 MIT
+
+
+
+
+# Notes on dev fixing
+- job status
+processing(active),waiting, completed, failed,delayed, paused

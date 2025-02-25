@@ -13,7 +13,7 @@
     "ioredis": "npm:ioredis@5.4.1"
   },
   "tasks": {
-    "dev": "deno run -A --watch example/index.ts"
+    "dev": "deno run -A --watch  example/server.ts"
   },
   "fmt": {
     "useTabs": false,
