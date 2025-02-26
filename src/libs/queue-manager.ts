@@ -2,6 +2,7 @@ import {
   JobData,
   JobHandler,
   JobOptions,
+  ExtJobData,
   JobQueueManagerOptions,
   JobState,
   JobType,
@@ -10,7 +11,6 @@ import {
 import { parseCronExpression } from 'cron-schedule';
 import { Queue } from './queue.ts';
 import { Worker } from './worker.ts';
-import { json } from 'node:stream/consumers';
 export class QueueManager {
   private static instance: QueueManager;
   private queues: { [key: string]: { [key: string]: Queue } } = {};
@@ -21,19 +21,22 @@ export class QueueManager {
   private db: RedisConnection;
   private ctx: unknown;
   private concurrency: number;
-  private constructor(db: RedisConnection, ctx: unknown, concurrency: number) {
+  private streamdb: RedisConnection;
+  private constructor(db: RedisConnection, ctx: unknown, concurrency: number, streamdb?: RedisConnection) {
     this.db = db;
     this.ctx = ctx;
     this.concurrency = concurrency;
+    this.streamdb = streamdb || db;
   }
 
   static init(
     db: RedisConnection,
     ctx: unknown = {},
     concurrency: number = 1,
+    streamdb?: RedisConnection,
   ): QueueManager {
     if (!QueueManager.instance) {
-      QueueManager.instance = new QueueManager(db, ctx, concurrency);
+      QueueManager.instance = new QueueManager(db, ctx, concurrency, streamdb);
     }
     return QueueManager.instance;
   }
@@ -43,7 +46,7 @@ export class QueueManager {
       throw new Error('queueName is required');
     }
     try {
-      await this.db.xgroup(
+      await this.streamdb.xgroup(
         'CREATE',
         `${queueName}-stream`,
         '*', // keep an eye on this as the consumer is always worker
@@ -56,7 +59,7 @@ export class QueueManager {
     }
   }
 
-  registerJob(job: { path: string, handler: (ctx: unknown, job: JobState) => void, options?: JobOptions }): void {
+  registerJob(job: { path: string, handler: (job: ExtJobData, ctx: unknown) => void, options?: JobOptions }): void {
     if (!job.path) {
       throw new Error(`maximum '/'`);
     }
@@ -72,7 +75,7 @@ export class QueueManager {
     let queue: Queue;
 
     if (!this.queues[queueName]) {
-      queue = new Queue(this.db, queueName);
+      queue = new Queue(this.db, queueName, this.streamdb);
       this.queues[queueName] = { queue };
       this.createConsumerGroup(queueName);
     } else {
@@ -93,17 +96,23 @@ export class QueueManager {
       [jobName]: job.handler,
     } as unknown as { [key: string]: JobHandler };
     
-    const worker = queue.createWorker(async (job: JobData, update, helpers) => {
+    const worker = queue.createWorker(async (jobData: JobData) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      if (!job.state.name || job.state.name === 'undefined') {
+      if (!jobData.state.name || jobData.state.name === 'undefined') {
         throw new Error(`job.state.name is undefined`);
       }
 
-      return this.handlers[queueName][job.state.name](job, update, helpers);
+      // Create logger instance
+      const logger = await this.logger(jobData);
+
+      // Pass job state with logger to handler
+      return this.handlers[queueName][jobData.state.name]({
+        ...jobData.state,
+        logger
+      }, this.ctx);
     }, { concurrency: this.concurrency });
 
-    // console.log(this.handlers[queueName][jobName]({}, {}))
     this.workers[queueName] = worker;
   }
 
@@ -133,7 +142,6 @@ export class QueueManager {
     if (options?.attempts) {
       optionsLayer.retryCount = options?.attempts;
     }
-
     queue.pushJob({
       name: jobName,
       data,
@@ -206,41 +214,8 @@ export class QueueManager {
             retryCount: job.retryCount,
             retryDelayMs: job.retryDelayMs,
             timestamp: job.timestamp,
-            logs: [
-              // format json to logs and add /n
-              {
-                timestamp: new Date().toISOString(),
-                users: [
-                {
-                  id: 1,
-                  name: 'John Doe',
-                  email: 'john.doe@example.com'
-                },
-                {
-                  id: 2,
-                  name: 'Jane Doe',
-                  email: 'jane.doe@example.com'
-                }
-              ]
-            },
-            {
-              timestamp: new Date().toISOString(),
-              messages: [
-              {
-                id: 1,
-                message: 'notification sent to user 1'
-              },
-              {
-                id: 2,
-                message: 'notification sent to user 2'
-              }
-            ]
-          }
-            ],
-            errors: [
-              { timestamp: new Date().toISOString(), message:'something went wrong' },
-              { timestamp: new Date().toISOString(), message:'Restarting! File change detected: "/Users/leo/Private/typescript/redismq/src/libs/queue-manager.ts"'}
-            ]
+            logs: job.logs,
+            errors: job.errors
         }));
 
         // Group jobs by queue and status
@@ -289,6 +264,32 @@ export class QueueManager {
     for (const worker of Object.values(this.workers)) {
       worker.processJobs();
     }
+  }
+
+  async logger(job: JobData): Promise<(message: string | object) => Promise<void>> {
+    // Get the job key
+    const key = `queues:${job.id.replace(job.state.name, job.state.path.replace('/', ':'))}:${job.status}`;
+    
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    
+    // Return the actual logging function
+    return async (message: string | object) => {
+      // Get the latest job state for each log
+      const currentJobState = await this.db.get(key);
+      const jobStateObject = JSON.parse(currentJobState ?? '{"logs": []}');
+
+      // Create log entry with timestamp
+      const logEntry = {
+        timestamp: Date.now(),
+        message: typeof message === 'string' ? message : JSON.stringify(message)
+      };
+
+      // Add to logs array
+      jobStateObject.logs.push(JSON.stringify(logEntry));
+// console.log(key, jobStateObject.logs)
+      // Save updated state
+      await this.db.set(key, JSON.stringify(jobStateObject));
+    };
   }
 
   // handle Status queues

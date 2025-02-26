@@ -14,8 +14,8 @@ import { Worker } from './worker.ts';
 export class Queue {
   readonly db: RedisConnection;
   readonly key: string;
-
-  constructor(db: unknown, key: string) {
+  readonly streamdb: RedisConnection;
+  constructor(db: RedisConnection, key: string, streamdb?: RedisConnection) {
     if (!isRedisConnection(db)) {
       throw new Error(
         'Database connection must implement RedisConnection interface',
@@ -23,12 +23,13 @@ export class Queue {
     }
     this.db = db;
     this.key = key;
+    this.streamdb = streamdb || db;
   }
 
   private async ensureConsumerGroup(): Promise<void> {
     try {
       // Create the stream and consumer group if they don't exist
-      await this.db.xgroup('CREATE', 
+      await this.streamdb.xgroup('CREATE', 
         `${this.key}-stream`, 
         'workers', 
         '0', 
@@ -91,7 +92,10 @@ export class Queue {
       repeatDelayMs,
       retryCount,
       retryDelayMs,
-      logs,
+      logs: [{
+        message: `Added to the queue`,
+        timestamp: Date.now()
+      }],
       errors,
     };
 
@@ -103,7 +107,7 @@ export class Queue {
     };
     const stringifiedJob = JSON.stringify(data);
     
-    await this.db.xadd(`${this.key}-stream`, '*', 'data', stringifiedJob);
+    await this.streamdb.xadd(`${this.key}-stream`, '*', 'data', stringifiedJob);
     await this.db.set(`queues:${this.key}:${id}:${data.status}`, stringifiedJob);
     return { id, ...job };
   }
@@ -128,7 +132,7 @@ export class Queue {
       const consumerId = `worker-${Math.random().toString(36).substring(2, 15)}`;
       
       try {
-        const jobs = await this.db.xreadgroup(
+        const jobs = await this.streamdb.xreadgroup(
           'GROUP', 
           'workers', 
           consumerId,
@@ -199,10 +203,10 @@ export class Queue {
   }
 
   createWorker(
-    handler: JobHandler,
+    handler: (jobData: JobData) => Promise<void> ,
     options?: WorkerOptions,
   ): Worker {
-    return new Worker(this.db, this.key, handler, options);
+    return new Worker(this.db, this.key, handler as unknown as JobHandler, options, this.streamdb);
   }
 
   /**
@@ -214,7 +218,7 @@ export class Queue {
         // XTRIM key MAXLEN [~] count
         // The '~' flag with MAXLEN trims to approximately maxLen entries
         // Redis keeps the most recent entries by default
-        await this.db.xtrim(this.key + '-stream', 'MAXLEN', maxLen);
+        await this.streamdb.xtrim(this.key + '-stream', 'MAXLEN', maxLen);
     } catch (error) {
         console.error(`Error trimming stream ${this.key}:`, error);
         throw error;
@@ -222,7 +226,7 @@ export class Queue {
   }
 
   async add(data: Record<string, string>): Promise<string> {
-    const id = await this.db.xadd(this.key + '-stream', '*', data) as string;
+    const id = await this.streamdb.xadd(this.key + '-stream', '*', data) as string;
     await this.xtrim(); // Automatically trim to keep most recent 200 entries
     return id;
   }

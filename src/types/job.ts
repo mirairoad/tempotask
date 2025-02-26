@@ -2,7 +2,7 @@ export interface JobState {
   name: string;
   data?: unknown;
   options?: JobOptions;
-  path?: string;
+  path: string;
 }
 
 export interface JobData {
@@ -21,7 +21,10 @@ export interface JobData {
   repeatDelayMs: number;
   retryCount: number;
   retryDelayMs: number;
-  logs?: string[];
+  logs?: {
+    message: string;
+    timestamp: number;
+  }[];
   errors?: string[];
   timestamp: number;
 }
@@ -50,8 +53,14 @@ export interface PushJob {
   options?: JobOptions;
 }
 
-export type JobHandler = (
-  job: JobData,
-  update: (job: Partial<JobData>) => Promise<void>,
-  helpers: { stopProcessing: () => void }
-) => Promise<void>; 
+export interface ExtJobData extends JobState {
+  logger: (message: string | object) => Promise<void> 
+}
+
+export interface JobHandler{
+  (job: ExtJobData,
+  ctx: unknown): Promise<void>
+}
+ 
+  // update: (job: Partial<JobData>) => Promise<void>,
+  // helpers: { stopProcessing: () => void }; 

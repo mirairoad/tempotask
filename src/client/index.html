@@ -436,6 +436,20 @@
         border-radius: 4px;
         padding: 1rem;
       }
+
+      .job-detail .log-entry.error {
+        background: #fff5f5;
+        border-color: #ff8080;
+      }
+
+      .job-detail .log-entry.error pre {
+        color: #cc0000;
+      }
+
+      .job-detail .log-entry.error code {
+        background: none;
+        color: inherit;
+      }
     </style>
   </head>
   <body>
@@ -480,9 +494,8 @@
             <span>Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
             <button id="nextPage" class="button">Next</button>
             <select id="pageSizeSelect" class="select">
-              <option value="10">10 per page</option>
-            <option value="25">25 per page</option>
-            <option value="50" selected>50 per page</option>
+              <option value="10" selected>10 per page</option>
+            <option value="30">30 per page</option>
             <option value="100">100 per page</option>
           </select>
         </div>
@@ -528,11 +541,12 @@
         currentQueue: null,
         currentStatus: '{{selectedTab}}',
         currentPage: 1,
-        pageSize: 50,
+        pageSize: 15,
         jobsCache: new Map(),
         lastUpdate: 0,
         selectedJobId: '{{selectedJobId}}' || null,
-        selectedSubtab: '{{selectedSubtab}}' || 'information'
+        selectedSubtab: '{{selectedSubtab}}' || 'information',
+        pollingTime: 2000
       };
 
       // SVG Icons
@@ -585,6 +599,16 @@
         });
       }
 
+      // Add an HTML escape function
+      function escapeHtml(unsafe) {
+        return unsafe
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
       // Job action handlers
       function attachJobActionHandlers() {
         document.getElementById('jobsList')?.addEventListener('click', async (e) => {
@@ -634,9 +658,10 @@
       }
       
       // Initialize polling
-      async function initPolling() {
+      function initPolling() {
+        setInterval(async () => {
         await fetchAndUpdateData();
-        setInterval(fetchAndUpdateData, 1000);
+        }, state.pollingTime); // Poll every second for real-time updates
       }
       
       // Fetch data and update UI efficiently
@@ -655,6 +680,19 @@
             const currentQueueData = queues.find(q => q.name === state.currentQueue);
             if (currentQueueData) {
               updateJobsData(currentQueueData);
+              
+              // Update modal content if it's open and job exists
+              if (state.selectedJobId && document.getElementById('jobDetail').classList.contains('is-active')) {
+                const job = Object.values(currentQueueData.jobs)
+                  .flat()
+                  .find(j => j.id === state.selectedJobId);
+                  
+                if (job) {
+                  console.log(job)
+                  // Only update the content, don't reset the modal state
+                  updateModalContent(job);
+                }
+              }
             }
           }
         } catch (err) {
@@ -908,7 +946,19 @@
         });
       }
 
-      // Update showJobDetail to handle errors separately
+      // Add retry utility function
+      async function retry(fn, maxAttempts = 3, delay = 1000) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            return await fn();
+          } catch (err) {
+            if (attempt === maxAttempts) throw err;
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+
+      // Update showJobDetail to use retry
       async function showJobDetail(jobId) {
         try {
           // Update URL without reload
@@ -920,147 +970,40 @@
           
           state.selectedJobId = jobId;
           
-          // Wait for initial data load if needed
-          if (!state.queues.size) {
+          // Use retry mechanism to get job data
+          const job = await retry(async () => {
+            // Fetch fresh data
             await fetchAndUpdateData();
-          }
+            
+            // Get job from current queue data
+            const queueData = state.queues.get(state.currentQueue);
+            if (!queueData) {
+              throw new Error('Queue not found');
+            }
+            
+            const job = Object.values(queueData.jobs)
+              .flat()
+              .find(j => j.id === jobId);
+            
+            if (!job) {
+              throw new Error('Job not found');
+            }
+
+            return job;
+          });
           
-          // Get job from current queue data
-          const queueData = state.queues.get(state.currentQueue);
-          if (!queueData) {
-            throw new Error('Queue not found');
-          }
-          
-          const job = Object.values(queueData.jobs)
-            .flat()
-            .find(j => j.id === jobId);
-          
-          if (!job) {
-            throw new Error('Job not found');
-          }
-          
-          // Update modal title
+          // Rest of the function remains the same...
           document.getElementById('jobDetailTitle').textContent = 
             `${job.id?.replace(`queues:${state.currentQueue}:`, '')}`;
           
-          // Format job data without logs and errors
           const jobInfo = { ...job };
-          delete jobInfo.logs;
-          delete jobInfo.errors;
-          
-          // Format and highlight JSON data
           const formattedData = JSON.stringify(jobInfo, null, 2);
           document.getElementById('jobDetailData').textContent = formattedData;
           
-          // Format logs with timeline
-          const formattedLogs = job.logs?.map((log, index) => {
-            try {
-              const logObj = typeof log === 'string' ? JSON.parse(log) : log;
-              const timestamp = logObj.timestamp || Date.now();
-              const date = new Date(timestamp);
-              
-              return {
-                time: timestamp,
-                html: `
-                  <div class="timeline-item">
-                    <div class="timeline-marker">
-                      <div class="timeline-date">
-                        <span class="time">${date.toLocaleTimeString()}</span>
-                        <span class="date">${date.toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <div class="timeline-content">
-                      <div class="log-entry">
-                        <pre><code class="language-json">${JSON.stringify(logObj, null, 2)}</code></pre>
-                      </div>
-                    </div>
-                  </div>
-                `
-              };
-            } catch {
-              const now = new Date();
-              return {
-                time: now.getTime(),
-                html: `
-                  <div class="timeline-item">
-                    <div class="timeline-marker">
-                      <div class="timeline-date">
-                        <span class="time">${now.toLocaleTimeString()}</span>
-                        <span class="date">${now.toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <div class="timeline-content">
-                      <div class="log-entry">
-                        <pre><code>${typeof log === 'object' ? JSON.stringify(log, null, 2) : log}</code></pre>
-                      </div>
-                    </div>
-                  </div>
-                `
-              };
-            }
-          }).sort((a, b) => a.time - b.time) || [];
-
-          // Format errors with timeline
-          const formattedErrors = job.errors?.map((error, index) => {
-            try {
-              const errorObj = typeof error === 'string' ? JSON.parse(error) : error;
-              const timestamp = errorObj.timestamp || Date.now();
-              const date = new Date(timestamp);
-              
-              return {
-                time: timestamp,
-                html: `
-                  <div class="timeline-item">
-                    <div class="timeline-marker">
-                      <div class="timeline-date">
-                        <span class="time">${date.toLocaleTimeString()}</span>
-                        <span class="date">${date.toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <div class="timeline-content">
-                      <div class="log-entry">
-                        <pre><code class="language-json">${JSON.stringify(errorObj, null, 2)}</code></pre>
-                      </div>
-                    </div>
-                  </div>
-                `
-              };
-            } catch {
-              const now = new Date();
-              return {
-                time: now.getTime(),
-                html: `
-                  <div class="timeline-item">
-                    <div class="timeline-marker">
-                      <div class="timeline-date">
-                        <span class="time">${now.toLocaleTimeString()}</span>
-                        <span class="date">${now.toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <div class="timeline-content">
-                      <div class="log-entry">
-                        <pre><code>${typeof error === 'object' ? JSON.stringify(error, null, 2) : error}</code></pre>
-                      </div>
-                    </div>
-                  </div>
-                `
-              };
-            }
-          }).sort((a, b) => a.time - b.time) || [];
-
-          // Update containers with formatted content
-          document.getElementById('logsContainer').innerHTML = 
-            formattedLogs.map(item => item.html).join('') || 
-            '<div class="timeline-item"><div class="timeline-content">No logs available</div></div>';
-
-          document.getElementById('errorsContainer').innerHTML = 
-            formattedErrors.map(item => item.html).join('') || 
-            '<div class="timeline-item"><div class="timeline-content">No errors reported</div></div>';
+          updateModalContent(job);
           
-          // Show modal and set initial tab
           document.getElementById('jobDetail').classList.add('is-active');
           
-          // Set active tab from state
           const tabElement = document.querySelector(`[data-tab="${state.selectedSubtab}"]`);
           if (tabElement) {
             document.querySelectorAll('.job-detail .tabs li').forEach(t => 
@@ -1075,7 +1018,6 @@
               .classList.add('is-active');
           }
           
-          // Apply syntax highlighting
           document.querySelectorAll('.job-detail pre code').forEach(block => {
             hljs.highlightElement(block);
           });
@@ -1176,6 +1118,117 @@
           state.selectedSubtab = 'information';
         }
       });
+
+      // Update the updateModalContent function
+      function updateModalContent(job) {
+        // Update logs if we're on the logs tab
+        if (state.selectedSubtab === 'logs') {
+          const formattedLogs = (job.logs || []).map(log => {
+            try {
+              const logEntry = typeof log === 'string' ? JSON.parse(log) : log;
+              const date = new Date(logEntry.timestamp);
+              
+              // Safely format the message
+              const messageContent = typeof logEntry.message === 'string' 
+                ? escapeHtml(logEntry.message)
+                : escapeHtml(JSON.stringify(logEntry.message, null, 2));
+              
+              return {
+                time: logEntry.timestamp,
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${date.toLocaleTimeString()}</span>
+                        <span class="date">${date.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry">
+                        <pre><code class="language-json">${messageContent}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            } catch (error) {
+              console.error('Error parsing log:', log, error);
+              return null;
+            }
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.time - b.time);
+
+          document.getElementById('logsContainer').innerHTML = 
+            formattedLogs.map(item => item.html).join('') || 
+            '<div class="timeline-item"><div class="timeline-content">No logs available</div></div>';
+
+          // Re-apply syntax highlighting
+          document.querySelectorAll('#logsContainer pre code').forEach(block => {
+            hljs.highlightElement(block);
+          });
+        }
+
+        // Update errors if we're on the errors tab
+        if (state.selectedSubtab === 'errors') {
+          const formattedErrors = (job.errors || []).map(error => {
+            try {
+              const errorEntry = typeof error === 'string' ? JSON.parse(error) : error;
+              const date = new Date(errorEntry.timestamp);
+              
+              // Format the error message and stack trace
+              const errorContent = `${escapeHtml(errorEntry.message)}\n${
+                errorEntry.stack ? `\nStack Trace:\n${escapeHtml(errorEntry.stack)}` : ''
+              }`;
+              
+              return {
+                time: errorEntry.timestamp,
+                html: `
+                  <div class="timeline-item">
+                    <div class="timeline-marker">
+                      <div class="timeline-date">
+                        <span class="time">${date.toLocaleTimeString()}</span>
+                        <span class="date">${date.toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div class="timeline-content">
+                      <div class="log-entry error">
+                        <pre><code class="language-text">${errorContent}</code></pre>
+                      </div>
+                    </div>
+                  </div>
+                `
+              };
+            } catch (error) {
+              console.error('Error parsing error entry:', error);
+              return null;
+            }
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.time - b.time);
+
+          document.getElementById('errorsContainer').innerHTML = 
+            formattedErrors.map(item => item.html).join('') || 
+            '<div class="timeline-item"><div class="timeline-content">No errors reported</div></div>';
+
+          // Re-apply syntax highlighting
+          document.querySelectorAll('#errorsContainer pre code').forEach(block => {
+            hljs.highlightElement(block);
+          });
+        }
+
+        // Update info tab content
+        if (state.selectedSubtab === 'info') {
+          const jobInfo = { ...job };
+          const formattedData = JSON.stringify(jobInfo, null, 2);
+          document.getElementById('jobDetailData').textContent = formattedData;
+          
+          // Re-apply syntax highlighting
+          document.querySelectorAll('#jobInfo pre code').forEach(block => {
+            hljs.highlightElement(block);
+          });
+        }
+      }
       </script>
     </body>
 </html>

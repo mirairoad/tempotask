@@ -33,4 +33,23 @@ export interface RedisConnection {
     count?: string|number,
     ...args: unknown[]
   ): Promise<[string, string[]]>;
+  xpending(
+    key: string,
+    group: string,
+    start: string,
+    end: string,
+    count: number
+  ): Promise<any>;
+  xclaim(
+    key: string,
+    group: string,
+    consumer: string,
+    minIdleTime: number,
+    ids: string[]
+  ): Promise<any>;
+  xack(
+    key: string,
+    group: string,
+    ...ids: string[]
+  ): Promise<number>;
 } 

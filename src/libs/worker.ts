@@ -1,6 +1,7 @@
 // deno-lint-ignore-file ban-ts-comment
 import { parseCronExpression } from 'cron-schedule';
 import {
+ExtJobData,
   JobData,
   JobHandler,
   NextJobEntry,
@@ -20,6 +21,8 @@ export class Worker extends EventTarget {
    * Key prefix to use for accessing queue's data.
    */
   readonly key: string;
+
+  readonly streamdb: RedisConnection;
 
   /**
    * The function that processes the jobs.
@@ -69,6 +72,7 @@ export class Worker extends EventTarget {
     key: string,
     handler: JobHandler,
     options: WorkerOptions = {},
+    streamdb?: RedisConnection,
   ) {
     super();
     if (!isRedisConnection(db)) {
@@ -77,6 +81,7 @@ export class Worker extends EventTarget {
       );
     }
     this.db = db;
+    this.streamdb = streamdb || db;
     this.key = key;
     this.handler = handler;
     this.options = {
@@ -181,7 +186,7 @@ export class Worker extends EventTarget {
               // console.log('Caching timestamp:', job.timestamp, this.cache.get(cacheKey));
 
               // Keep the original timestamp when re-adding to stream
-              await this.db.xadd(
+              await this.streamdb.xadd(
                 `${this.key}-stream`,
                 '*',
                 'data',
@@ -223,84 +228,52 @@ export class Worker extends EventTarget {
 
   async #processJob(jobEntry: JobData): Promise<void> {
     try {
+      await this.db.del(`queues:${this.key}:${jobEntry.id}:${jobEntry.status}`);
       // Update status to processing
+
       const processingData = {
         ...jobEntry,
+        logs: [...(jobEntry.logs || []), {
+          message: 'processing',
+          timestamp: Date.now(),
+        }],
+        lastRun: Date.now(),
         status: 'processing',
-        timestamp: Date.now()
       };
       
       // Store processing state
-      const processingKey = `queues:${this.key}:${jobEntry.id}:${processingData.status}`;
+      const processingKey = `queues:${this.key}:${processingData.id}:${processingData.status}`;
       await this.db.set(processingKey, JSON.stringify(processingData));
-      
-      // Update states hash
-      // const stateKey = `queues:${this.key}:${jobEntry.id}:states`;
-      // await this.db.hset(stateKey, processingData.status, JSON.stringify(processingData));
-
+      // console.log(`queues:${this.key}:${processingData.id}:${processingData.status}`)
       // Process the job
-      await this.handler(processingData as JobData, async (job: Partial<JobData>) => {
-        await retry(async () => {
-          const updatedJob = {
-            ...job,
-            status:job.status ?? 'processing',
-            state: job.state ?? jobEntry.state,
-            delayUntil: job.delayUntil ?? jobEntry.delayUntil,
-            lockUntil: job.lockUntil ?? Date.now() + this.options.lockDurationMs,
-            repeatCount: job.repeatCount ?? jobEntry.repeatCount,
-            repeatDelayMs: job.repeatDelayMs ?? jobEntry.repeatDelayMs,
-            retryCount: job.retryCount ?? jobEntry.retryCount,
-            retryDelayMs: job.retryDelayMs ?? jobEntry.retryDelayMs,
-            lastRun: Date.now()
-          };
-          await this.db.xadd(
-            `${this.key}-stream`,
-            '*',
-            'data',
-            JSON.stringify(updatedJob),
-          );
-        });
-      },
-      {
-        stopProcessing: () => {
-          this.stopProcessing();
-        },
-      },
-      );
+      await this.handler(processingData as unknown as ExtJobData, {});
 
       // Update to completed state
       const completedData = {
-        ...jobEntry,
+        ...processingData,
+        logs: [...(processingData.logs || []), {
+          message: 'the task has been completed',
+          timestamp: Date.now()
+        }],
         status: 'completed',
-        timestamp: Date.now()
       };
 
       // Store completed state
-      // const completedKey = `queues:${this.key}:${jobEntry.id}:${completedData.status}`;
-      // console.log('completedKey', completedKey);
-      // await this.db.set(completedKey, JSON.stringify(completedData));
+      await this.db.del(`queues:${this.key}:${completedData.id}:${completedData.status}`);
+      await this.db.del(`queues:${this.key}:${completedData.id}:processing`);
+      const completedKey = `queues:${this.key}:${completedData.id}:${crypto.randomUUID()}:${completedData.status}`;
+      await this.db.set(completedKey, JSON.stringify(completedData));
       
-      // Update states hash
-      // await this.db.hset(stateKey, completedData.status, JSON.stringify(completedData));
-
-      // Clean up processing state
-      // console.log('delete', processingKey)
-      // await this.db.del(processingKey);
-
       // Dispatch complete event
       this.dispatchEvent(
         new CustomEvent('complete', {
           detail: {
             job: {
-                  ...jobEntry,
+              ...completedData,
             },
           },
         }),
       );
-
-      // await this.db.del(`queues:${this.key}:${jobEntry.id}:processing`);
-      // await this.db.set(`queues:${this.key}:${jobEntry.id}:${crypto.randomUUID()}:completed`, JSON.stringify({ ...jobEntry, status: 'completed' }));
-
 
       // Handle job repetition
       if (
@@ -323,22 +296,42 @@ export class Worker extends EventTarget {
           status: 'delayed'
         };
 
-        await this.db.xadd(
+        await this.streamdb.xadd(
           `${this.key}-stream`,
           '*',
           'data',
           JSON.stringify(newJob),
         );
       }
-    } catch (error) {
+
+      // After successful processing, remove from stream
+      if (jobEntry.messageId) {
+        await this.streamdb.xack(
+          `${this.key}-stream`,
+          'workers',
+          jobEntry.messageId
+        );
+        await this.streamdb.xdel(
+          `${this.key}-stream`,
+          jobEntry.messageId
+        );
+      }
+    } catch (error: unknown) {
       // Handle failed state
       const failedData = {
         ...jobEntry,
         status: 'failed',
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        errors: [
+          {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: Date.now()
+          }
+        ]
       };
 
-      const failedKey = `queues:${this.key}:${jobEntry.id}:${failedData.status}`;
+      const failedKey = `queues:${this.key}:${jobEntry.id}:${crypto.randomUUID()}:${failedData.status}`;
       await this.db.set(failedKey, JSON.stringify(failedData));
 
       // Dispatch error event
@@ -363,10 +356,14 @@ export class Worker extends EventTarget {
             delayUntil: Date.now() + jobEntry.retryDelayMs,
             lockUntil: Date.now(),
             retryCount: jobEntry.retryCount - 1,
-            retriedAttempts: jobEntry?.retriedAttempts + 1
+            retriedAttempts: jobEntry?.retriedAttempts + 1,
+            logs: [...(jobEntry.logs || []), {
+              message: `retrying ${jobEntry.retryCount} more times`,
+              timestamp: Date.now()
+            }],
           };
 
-          await this.db.xadd(
+          await this.streamdb.xadd(
             `${this.key}-stream`,
             '*',
             'data',
@@ -374,8 +371,18 @@ export class Worker extends EventTarget {
           );
         }
 
-        // Remove the failed message from stream
-        await this.db.xdel(`${this.key}-stream`, jobEntry.messageId);
+        // Don't remove failed messages if they can be retried
+        if (!jobEntry.retryCount) {
+          await this.streamdb.xack(
+            `${this.key}-stream`,
+            'workers',
+            jobEntry.messageId
+          );
+          await this.streamdb.xdel(
+            `${this.key}-stream`,
+            jobEntry.messageId
+          );
+        }
       } catch (retryError) {
         console.log(`Job ${jobEntry.id}: Failed to retry: ${retryError}`);
       }
@@ -426,7 +433,7 @@ export class Worker extends EventTarget {
 
   private async ensureConsumerGroup(): Promise<void> {
     try {
-      await this.db.xgroup(
+      await this.streamdb.xgroup(
         'CREATE', 
         `${this.key}-stream`, 
         'workers', 
@@ -452,12 +459,40 @@ export class Worker extends EventTarget {
     // Ensure consumer group exists before reading
     await this.ensureConsumerGroup();
     
-    const consumerId = `worker-${Math.random().toString(36).substring(2, 15)}`;
+    const consumerId = `worker-${crypto.randomUUID()}`; // More unique consumer ID
     
     try {
-      const jobs = await this.db.xreadgroup(
-        'GROUP', 
-        'workers', 
+      // First try to claim any pending messages
+      const pendingMessages = await this.streamdb.xpending(
+        `${queueName}-stream`,
+        'workers',
+        '-',
+        '+',
+        count
+      );
+
+      if (pendingMessages?.length) {
+        // Claim messages that have been pending too long
+        const now = Date.now();
+        const claimIds = pendingMessages
+          .filter((msg: { lastDelivered: number }) => (now - msg.lastDelivered) > 30000) // 30 seconds threshold
+          .map((msg: { id: string }) => msg.id);
+
+        if (claimIds.length) {
+          await this.streamdb.xclaim(
+            `${queueName}-stream`,
+            'workers',
+            consumerId,
+            30000, // Min idle time
+            claimIds
+          );
+        }
+      }
+
+      // Then read new messages
+      const jobs = await this.streamdb.xreadgroup(
+        'GROUP',
+        'workers',
         consumerId,
         'COUNT',
         count,
@@ -465,14 +500,24 @@ export class Worker extends EventTarget {
         block,
         'STREAMS',
         `${queueName}-stream`,
-        '>'
+        '>'  // Only new messages
       ) as [string, [string, string]][];
 
       if (!jobs?.[0]?.[1]?.length) {
         return [];
       }
 
-      return this.sanitizeStream(jobs);
+      const processedJobs = this.sanitizeStream(jobs);
+
+      // Acknowledge processed messages
+      const messageIds = jobs[0][1].map(([id]) => id);
+      await this.streamdb.xack(
+        `${queueName}-stream`,
+        'workers',
+        ...messageIds
+      );
+
+      return processedJobs;
     } catch (error) {
       console.error('Error reading from stream:', error);
       return [];
