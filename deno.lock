@@ -4,7 +4,7 @@
     "jsr:@hono/hono@*": "4.7.0",
     "jsr:@p4sca1/cron-schedule@^5.0.3": "5.0.3",
     "npm:@types/node@*": "22.5.4",
-    "npm:ioredis@5.4.1": "5.4.1",
+    "npm:ioredis@5.5.0": "5.5.0",
     "npm:redis@4.6.4": "4.6.4_@redis+client@1.5.5"
   },
   "jsr": {
@@ -78,8 +78,8 @@
     "generic-pool@3.9.0": {
       "integrity": "sha512-hymDOu5B53XvN4QT9dBmZxPX4CWhBPPLguTZ9MMFeFa/Kg0xWVfylOVNlJji/E7yTZWFd/q9GO5TxDLq156D7g=="
     },
-    "ioredis@5.4.1": {
-      "integrity": "sha512-2YZsvl7jopIa1gaePkeMtd9rAcSjOOjPtpcLlOeusyO+XH2SK5ZcT+UCrElPP+WVIInh2TzeI4XW9ENaSLVVHA==",
+    "ioredis@5.5.0": {
+      "integrity": "sha512-7CutT89g23FfSa8MDoIFs2GYYa0PaNiW/OrT+nRyjRXHDZd17HmIgy+reOQ/yhh72NznNjGuS8kbCAcA4Ro4mw==",
       "dependencies": [
         "@ioredis/commands",
         "cluster-key-slot",
@@ -153,7 +153,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@p4sca1/cron-schedule@^5.0.3",
-      "npm:ioredis@5.4.1"
+      "npm:ioredis@5.5.0"
     ]
   }
 }

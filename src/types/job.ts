@@ -21,6 +21,7 @@ export interface JobData {
   repeatDelayMs: number;
   retryCount: number;
   retryDelayMs: number;
+  paused: boolean;
   logs?: {
     message: string;
     timestamp: number;
@@ -30,7 +31,7 @@ export interface JobData {
 }
 
 export interface JobOptions {
-  _id?: string;
+  id?: string;
   priority?: number;
   delayUntil?: Date;
   lockUntil?: Date;

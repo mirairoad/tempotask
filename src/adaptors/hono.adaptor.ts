@@ -1,5 +1,4 @@
 import { Hono, Context } from 'jsr:@hono/hono';
-// import { serveStatic } from 'jsr:@hono/hono/serve-static';
 import type { QueueManager } from '../libs/queue-manager.ts';
 
 export class HonoAdaptor {
@@ -22,8 +21,13 @@ export class HonoAdaptor {
     this.router.get('/admin/jobs/:queue/:tab/:id', this.redirectToDefaultSubtab());
     this.router.get('/admin/jobs/:queue/:tab/:id/:subtab', this.getHTML());
     
-    // API endpoints
+    // API endpoints for client
     this.router.get('/admin/api/jobs', async (c) => c.json(await this.jobQueueManager.getJobsForUI()));
+    // API endpoints RAW
+    this.router.get('/admin/api/jobs/all', async (c) => c.json(await this.jobQueueManager.getJobs()));
+    this.router.get('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.getJobById(c.req.param('id'))));
+    this.router.delete('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.deleteJobById(c.req.param('id'))));
+    this.router.delete('/admin/api/jobs/all/:queue-status', async (c) => c.json(await this.jobQueueManager.deleteAllJobs(c.req.param('queue-status'))));
     this.router.post('/admin/api/queue/:name/pause', this.pauseQueueController());
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
   }
@@ -58,7 +62,7 @@ export class HonoAdaptor {
   }
 
   getHTML() {
-    return async (c: Context) => {
+    return (c: Context) => {
       const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
       const fileHtml = Deno.readTextFileSync('./src/client/index.html');
       const html = fileHtml

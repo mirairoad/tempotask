@@ -52,4 +52,9 @@ export interface RedisConnection {
     group: string,
     ...ids: string[]
   ): Promise<number>;
+  mget(...keys: string[]): Promise<(string | null)[]>;
+  pipeline?(): {
+    get(key: string): void;
+    exec(): Promise<[Error | null, string | null][]>;
+  };
 } 

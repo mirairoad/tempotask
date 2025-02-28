@@ -24,11 +24,9 @@ const redisOption = {
 // create a streamdb this enchance performance drastically and they gets unaffected by the dashboard
 const db = new Redis(redisOption) as unknown as RedisConnection;
 const streamdb = new Redis({...redisOption, db: 1}) as unknown as RedisConnection;
-
-
-
-const contextApp = {}; // this can be anything like a server instance / store / even a mongowrapper to do calls to db
-
+// this can be anything like a server instance / store / even a mongowrapper to do calls to the db
+const contextApp = {}; 
+// initialize the queue manager
 const jqm = QueueManager.init(db, contextApp, cpuCount, streamdb);
 
 // register jobs
@@ -37,13 +35,7 @@ jqm.registerJob(multiJobs); // cron
 jqm.registerJob(startScheduler); // cron
 jqm.registerJob(onRequest); // no cron
 
-jqm.addJob('scheduler/onrequest', {
-  name: 'John Doe',
-  email: 'john.doe@example.com'
-}, {
-  attempts: 3,
-});
-
+// process jobs
 jqm.processJobs();
 
 export { jqm }

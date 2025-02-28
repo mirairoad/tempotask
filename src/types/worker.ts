@@ -1,3 +1,5 @@
+import { JobData } from './index.ts';
+
 export interface WorkerOptions {
   concurrency?: number;
   lockDurationMs?: number;

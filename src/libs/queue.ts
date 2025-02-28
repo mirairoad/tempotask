@@ -76,8 +76,8 @@ export class Queue {
       errors,
     } = defaultOptions;
 
-    const id: string = state?.options?._id
-      ? state?.options?._id
+    const id: string = state?.options?.id
+      ? state?.options?.id
       : genJobId(`${state.name}`, state?.data ?? {});
 
       const job: Partial<JobData> = {
@@ -87,6 +87,7 @@ export class Queue {
       status: state?.options?.repeat?.pattern ? 'delayed' : 'waiting',
       delayUntil: delayUntil.getTime(),
       lockUntil: Date.now(),
+      paused: false,
       retriedAttempts,
       repeatCount,
       repeatDelayMs,

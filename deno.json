@@ -10,7 +10,7 @@
   "exports": "./src/mod.ts",
   "imports": {
     "cron-schedule": "jsr:@p4sca1/cron-schedule@^5.0.3",
-    "ioredis": "npm:ioredis@5.4.1"
+    "ioredis": "npm:ioredis@5.5.0"
   },
   "tasks": {
     "dev": "deno run -A --watch  example/server.ts"
@@ -29,7 +29,8 @@
     ],
     "rules": {
       "exclude": [
-        "no-unused-vars"
+        "no-unused-vars",
+        "no-explicit-any"
       ],
       "tags": [
         "recommended"

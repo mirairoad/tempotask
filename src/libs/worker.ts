@@ -193,6 +193,7 @@ export class Worker extends EventTarget {
                 JSON.stringify({
                   ...job,
                   // Don't update the timestamp, keep the original
+                  // lastRun: Date.now(),
                   timestamp: job.timestamp 
                 })
               );
@@ -293,7 +294,8 @@ export class Worker extends EventTarget {
             ? jobEntry.repeatCount
             : jobEntry.repeatCount - 1,
           timestamp: Date.now(),
-          status: 'delayed'
+          status: 'delayed',
+          lastRun: Date.now(),
         };
 
         await this.streamdb.xadd(
