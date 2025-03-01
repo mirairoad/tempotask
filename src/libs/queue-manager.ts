@@ -33,9 +33,37 @@ export class QueueManager {
     db: RedisConnection,
     ctx: unknown = {},
     concurrency: number = 1,
-    streamdb?: RedisConnection,
   ): QueueManager {
     if (!QueueManager.instance) {
+      let streamdbIndex = db.options?.db;
+      let streamdb;
+      if(db?.options?.optimise) {
+        streamdbIndex = db.options?.db ? db.options?.db + 1 : 1;
+        if(streamdbIndex > 15) {
+          throw new Error(`Redis database limit reached\n\n
+              Optimise is enable means your "options.db + 1" is greater than 15
+              \n\n
+              Select a number between 0 and 14 when optimise is enable
+              \n\n
+              THIS IS A CUSTOM OPTIONS FOR REDIS CONNECTION
+              \n\n
+              const redisOption = {
+                optimise: true,
+                db: 0-14,
+              } OR
+              \n\n
+              const redisOption = {
+                optimise: false,
+                db: 15,
+              }
+              \n\n
+              `);
+        }
+        streamdb = db.duplicate({db: streamdbIndex});
+      } else {
+        streamdb = db;
+      }
+
       QueueManager.instance = new QueueManager(db, ctx, concurrency, streamdb);
     }
     return QueueManager.instance;
@@ -353,13 +381,13 @@ export class QueueManager {
     if(!['waiting','delayed'].includes(jobData.status)) {
       throw new Error(`Job ${id} is not in waiting or delayed status`);
     }
-    if(jobData.state.paused) {
-      jobData.state.paused = false;
+    if(jobData.paused) {
+      jobData.paused = false;
     } else {
-      jobData.state.paused = true;
+      jobData.paused = true;
     }
     await this.db.set(`${id}`, JSON.stringify(jobData));
-    return jobData.state.paused ? 'OK' : null;
+    return jobData.paused ? 'OK' : null;
   }
 
   async deleteJobById(id: string) {

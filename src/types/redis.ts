@@ -57,4 +57,10 @@ export interface RedisConnection {
     get(key: string): void;
     exec(): Promise<[Error | null, string | null][]>;
   };
+  duplicate(options?: { db?: number }): RedisConnection;
+  options?: {
+    optimise: boolean; // this will offload the redis connection to a different database
+    db?: number;
+    [key: string]: any;
+  };
 } 

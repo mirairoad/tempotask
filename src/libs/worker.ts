@@ -125,6 +125,7 @@ export class Worker extends EventTarget {
 
     try {
       while (true) {
+        console.log(this.db.options?.db, this.streamdb.options?.db);
         // Check abort signal
         if (signal?.aborted || controller.signal.aborted) {
           break;
@@ -133,8 +134,7 @@ export class Worker extends EventTarget {
         // Check if queue is paused
         const pausedKey = `queues:${this.key}:paused`;
         const isPaused = await this.db.get(pausedKey);
-        // console.log('isPaused', isPaused);
-        
+
         if (isPaused) {
           await delay(this.options.pollIntervalMs);
           continue;
@@ -143,6 +143,7 @@ export class Worker extends EventTarget {
         try {
           // Get jobs from the stream using consumer group
           const jobs: JobData[] = await this.readQueueStream(this.key);
+          // console.log(jobs);
 
           if (jobs.length === 0) {
             await delay(this.options.pollIntervalMs);
@@ -151,6 +152,11 @@ export class Worker extends EventTarget {
 
           // Process jobs that are ready
           for (const job of jobs) {
+            // console.log(job.paused);
+            if(job.paused) {
+              await delay(this.options.pollIntervalMs);
+              continue;
+            }
             // Wait if we've hit concurrency limit
             while (this.#activeJobs.size >= this.options.concurrency) {
               await Promise.race([

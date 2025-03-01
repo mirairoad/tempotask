@@ -19,15 +19,16 @@ const redisOption = {
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
   db: 0,
+  // this will offload the redis connection to a different database CUSTOM OPTIONS below
+  optimise: true, 
 };
 
 // create a streamdb this enchance performance drastically and they gets unaffected by the dashboard
 const db = new Redis(redisOption) as unknown as RedisConnection;
-const streamdb = new Redis({...redisOption, db: 1}) as unknown as RedisConnection;
 // this can be anything like a server instance / store / even a mongowrapper to do calls to the db
 const contextApp = {}; 
 // initialize the queue manager
-const jqm = QueueManager.init(db, contextApp, cpuCount, streamdb);
+const jqm = QueueManager.init(db, contextApp, cpuCount);
 
 // register jobs
 jqm.registerJob(helloWorld); // cron

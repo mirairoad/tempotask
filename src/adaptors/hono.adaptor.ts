@@ -28,6 +28,7 @@ export class HonoAdaptor {
     this.router.get('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.getJobById(c.req.param('id'))));
     this.router.delete('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.deleteJobById(c.req.param('id'))));
     this.router.delete('/admin/api/jobs/all/:queue-status', async (c) => c.json(await this.jobQueueManager.deleteAllJobs(c.req.param('queue-status'))));
+    this.router.post('/admin/api/jobs/:id/pause', async (c) => c.json(await this.jobQueueManager.togglePauseJobById(c.req.param('id'))));
     this.router.post('/admin/api/queue/:name/pause', this.pauseQueueController());
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
   }
