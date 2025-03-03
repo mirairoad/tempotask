@@ -21,11 +21,6 @@
         "**/.DS_Store",
         "Makefile",
         "tests/"
-      ],
-      "include": [
-        "../README.md",
-        "../license",
-        "src/"
       ]
     },
     "fmt": {
