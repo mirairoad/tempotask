@@ -63,4 +63,11 @@ export interface RedisConnection {
     db?: number;
     [key: string]: any;
   };
+  xrange(
+    key: string,
+    start: string,
+    end: string,
+    count?: string,
+    limit?: string
+  ): Promise<[string, string[]][]>;
 } 

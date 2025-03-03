@@ -1,4 +1,4 @@
-import { JobState } from './job.ts';
+import type { JobState } from './job.ts';
 
 export interface QueueOptions {
   maxRetries?: number;

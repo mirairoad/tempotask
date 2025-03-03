@@ -1,0 +1,50 @@
+{
+    "name": "@leotermine/redismq-examples",
+    "version": "0.0.1",
+    "description": "examples for redismq",
+    "license": "MIT",
+    "repository": {
+      "type": "git",
+      "url": "https://github.com/mirairoad/redismq"
+    },
+    "imports": {
+      "@core/": "../core/src/",
+      "@adapters/base/": "../adapters/base/src/",
+      "@adapters/hono/": "../adapters/hono/src/",
+      "hono": "jsr:@hono/hono@^4.7.2",
+      "ioredis": "npm:ioredis@^5.5.0",
+      "cron-schedule": "jsr:@p4sca1/cron-schedule@^5.0.3"
+    },
+    "exports": {
+        "./server": "./server.ts"
+    },
+    "tasks": {
+        "dev": "deno run -A --watch server.ts"
+    },
+    "fmt": {
+        "useTabs": false,
+        "lineWidth": 80,
+        "indentWidth": 2,
+        "singleQuote": true,
+        "proseWrap": "preserve",
+        "semiColons": true
+      },
+      "lint": {
+        "include": [
+          "core/",
+          "adapters/"
+        ],
+        "exclude": [
+          "examples/"
+        ],
+        "rules": {
+          "exclude": [
+            "no-unused-vars",
+            "no-explicit-any"
+          ],
+          "tags": [
+            "recommended"
+          ]
+        }
+      }
+  }

@@ -4,6 +4,7 @@ import {
   // JobEntry,
   JobHandler,
   JobOptions,
+  JobState,
   PushJob,
   RedisConnection,
   WorkerOptions,
@@ -11,10 +12,21 @@ import {
 import { genJobId, isRedisConnection } from '../utils/index.ts';
 import { Worker } from './worker.ts';
 
+/**
+ * Queue implementation for Redis-MQ
+ * Handles job queueing, stream operations and worker creation
+ */
 export class Queue {
   readonly db: RedisConnection;
   readonly key: string;
   readonly streamdb: RedisConnection;
+
+  /**
+   * Creates a new Queue instance
+   * @param db - Redis connection for job storage
+   * @param key - Queue name/identifier
+   * @param streamdb - Optional separate Redis connection for streams
+   */
   constructor(db: RedisConnection, key: string, streamdb?: RedisConnection) {
     if (!isRedisConnection(db)) {
       throw new Error(
@@ -26,6 +38,10 @@ export class Queue {
     this.streamdb = streamdb || db;
   }
 
+  /**
+   * Ensures the consumer group exists for this queue
+   * Creates it if it doesn't exist
+   */
   private async ensureConsumerGroup(): Promise<void> {
     try {
       // Create the stream and consumer group if they don't exist
@@ -44,6 +60,12 @@ export class Queue {
     }
   }
 
+  /**
+   * Pushes a new job to the queue
+   * @param state - Job state including name and data
+   * @param options - Job options like priority and delay
+   * @returns Job data
+   */
   async pushJob(
     state: PushJob,
     options: JobOptions = {},
@@ -113,16 +135,28 @@ export class Queue {
     return { id, ...job };
   }
 
+  /**
+   * Pauses job processing for this queue
+   */
   async pause(): Promise<void> {
       const pausedKey = `queues:${this.key}:paused`;
       await this.db.set(pausedKey, 'true');
     }
 
+  /**
+   * Resumes job processing for this queue
+   */
   async resume(): Promise<void> {
       const pausedKey = `queues:${this.key}:paused`;
       await this.db.del(pausedKey);
    }
 
+  /**
+   * Gets all jobs from the queue
+   * @param count - Maximum number of jobs to retrieve (default: 200)
+   * @param block - How long to block waiting for jobs in ms (default: 5000)
+   * @returns Array of job data
+   */
   async getAllJobs(
       count: number = 200,
       block: number = 5000,
@@ -157,6 +191,11 @@ export class Queue {
       }
   }
   
+  /**
+   * Processes and sanitizes raw stream data into job objects
+   * @param stream - Raw stream data from Redis
+   * @returns Array of sanitized job objects
+   */
   sanitizeStream(stream: [string, [string, string]][]): JobData[] {
       if (!stream?.[0]?.[1]) return [];
       
@@ -203,6 +242,12 @@ export class Queue {
         });
   }
 
+  /**
+   * Creates a worker for this queue
+   * @param handler - Function to process jobs
+   * @param options - Worker options
+   * @returns Worker instance
+   */
   createWorker(
     handler: (jobData: JobData) => Promise<void> ,
     options?: WorkerOptions,
@@ -216,174 +261,21 @@ export class Queue {
    */
   async xtrim(maxLen: number = 200): Promise<void> {
     try {
-        // XTRIM key MAXLEN [~] count
-        // The '~' flag with MAXLEN trims to approximately maxLen entries
-        // Redis keeps the most recent entries by default
         await this.streamdb.xtrim(this.key + '-stream', 'MAXLEN', maxLen);
     } catch (error) {
-        console.error(`Error trimming stream ${this.key}:`, error);
+        // console.error(`Error trimming stream ${this.key}:`, error);
         throw error;
     }
   }
 
+  /**
+   * Adds data directly to the stream
+   * @param data - Key-value data to add to the stream
+   * @returns Generated message ID
+   */
   async add(data: Record<string, string>): Promise<string> {
     const id = await this.streamdb.xadd(this.key + '-stream', '*', data) as string;
     await this.xtrim(); // Automatically trim to keep most recent 200 entries
     return id;
   }
-      // async getAllJobs(): Promise<Array<JobData>> {
-    //   const results: Array<JobData> = [];
-    //   let index = 0;
-    //   const jobKeyPattern = `${this.key}:jobs:*`;
-    //   // console.log(jobKeyPattern);
-    //   let cursor = '0';
-
-    //   do {
-    //     const [nextCursor, keys] = await this.db.scan(
-    //       cursor,
-    //       'MATCH',
-    //       jobKeyPattern,
-    //       'COUNT',
-    //       200,
-    //     );
-
-    //     cursor = nextCursor;
-
-    //     for (const key of keys) {
-    //       const value = await this.db.get(key);
-
-    //       if (!value) continue;
-
-    //       const jobData = JSON.parse(value) as JobData;
-    //       const [_prefix, _jobsKey, priority, id] = key.split(':');
-
-    //       if (typeof priority !== 'string' || !id) continue;
-
-    //       let place: number;
-    //       let status: JobEntry['status'];
-
-    //       if (new Date(jobData.lockUntil) > new Date()) {
-    //         place = 0;
-    //         status = 'processing';
-    //       } else if (new Date(jobData.delayUntil) > new Date()) {
-    //         index++;
-    //         place = index;
-    //         status = 'delayed';
-    //       } else {
-    //         index++;
-    //         place = index;
-    //         status = 'waiting';
-    //       }
-
-    //       results.push({
-    //         ...jobData,
-    //         id: [priority, id],
-    //         place,
-    //         status,
-    //       });
-    //     }
-    //   } while (cursor !== '0');
-
-    //   return results;
-    // }
-
-  //   async removeDuplicate(jobName: string, jobValue: CronJobType): Promise<void> {
-  //     const jobObject = {
-  //       state: {
-  //         name: jobName,
-  //         data: {},
-  //         options: jobValue?.options || {},
-  //       },
-  //     };
-  //     const jobKey = `${this.key}:${JOBS_KEY}:0:${
-  //       genJobId(jobName, jobObject.state.data)
-  //     }`;
-  //     let foundJob = await this.db.get(jobKey);
-
-  //     if (!foundJob) {
-  //       return;
-  //     }
-
-  //     foundJob = JSON.parse(foundJob);
-
-  //     if (foundJob) {
-  //       if (!jobObject.state.options?.repeat?.pattern) {
-  //         await this.db.del(jobKey);
-  //       }
-  //     }
-  //     return;
-  //   }
-
-  //   async deleteWaitingJobs(): Promise<void> {
-  //     for (const job of await this.getAllJobs()) {
-  //       // console.log(key)
-  //       // const value = await this.db.get(key);
-
-  //       if (new Date(job.lockUntil) > new Date()) {
-  //         continue;
-  //       }
-  //       const jobKey = `${this.key}:${JOBS_KEY}:${job.id.join(':')}`;
-  //       await this.db.del(jobKey);
-  //     }
-  //   }
-
-  //   async deleteJob(id: JobData['id']): Promise<void> {
-  //     const jobKey = `${this.key}:${JOBS_KEY}:${id.join(':')}`;
-  //     await this.db.del(jobKey);
-  //   }
-
-  //   async listenUpdates(
-  //     onUpdate: (jobs: Array<JobEntry>) => void,
-  //     options: { signal?: AbortSignal; pollIntervalMs?: number },
-  //   ): Promise<void> {
-  //     const { signal, pollIntervalMs = 3000 } = options;
-  //     let lastJobsIds = '';
-  //     while (true) {
-  //       if (signal?.aborted) break;
-
-  //       const jobs = await this.getAllJobs();
-  //       const jobsIds = jobs.map((job) => job.id.join(':')).join();
-  //       if (jobsIds !== lastJobsIds) {
-  //         onUpdate(jobs);
-  //         lastJobsIds = jobsIds;
-  //       }
-
-  //       await delay(pollIntervalMs);
-  //     }
-  //   }
-
-  //   // Streams utility functions
-  //   async readStream(
-  //     count: number = 200,
-  //     block: number = 5000,
-  //     start: string = '>',
-  //   ): Promise<Array<string>> {
-  //     const jobs = await this.db.xreadgroup(
-  //       'GROUP',
-  //       CONSUMER_GROUP,
-  //       STREAM_NAME,
-  //       'COUNT',
-  //       count,
-  //       'BLOCK',
-  //       block,
-  //       'STREAMS',
-  //       STREAM_NAME,
-  //       start,
-  //     );
-  //     return jobs;
-  //   }
-
-  //   sanitizeStream(stream: string[]): Promise<JobEntry[]> {
-  //     if (!stream?.[0]?.[1]) return [];
-
-  //     const messages = stream[0][1]; // Get the array of messages
-  //     return messages.map(([messageId, [_, jobDataStr]]) => {
-  //       const jobData = JSON.parse(jobDataStr);
-  //       return {
-  //         messageId,
-  //         ...jobData,
-  //       };
-  //     });
-  //   }
-
 }

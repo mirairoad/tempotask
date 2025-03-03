@@ -1,4 +1,4 @@
-import { JobHandler, ExtJobData } from '../../src/types/index.ts';
+import { JobHandler, type ExtJobData } from '@core/types/index.ts';
 
 export default {
   path: 'scheduler/onrequest',

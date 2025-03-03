@@ -1,4 +1,4 @@
-import { Hono, Context } from 'jsr:@hono/hono';
+import { Hono, type Context } from 'hono';
 import type { QueueManager } from '../libs/queue-manager.ts';
 
 export class HonoAdaptor {
@@ -36,7 +36,7 @@ export class HonoAdaptor {
   initRouter() {
     return this.router;
   }
-
+  
   private redirectToDefaultQueue() {
     return async (c: Context) => {
       const queues = await this.jobQueueManager.getJobsForUI();
@@ -65,7 +65,9 @@ export class HonoAdaptor {
   getHTML() {
     return (c: Context) => {
       const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
-      const fileHtml = Deno.readTextFileSync('./src/client/index.html');
+      // './src/client/index.html'
+      // use cwd to read the file
+      const fileHtml = Deno.readTextFileSync(import.meta.dirname + '/../client/index.html');
       const html = fileHtml
         .replace('{{title}}', this.title)
         .replace('{{selectedQueue}}', queue)

@@ -1,7 +1,7 @@
-examples
-examples/*
-examples/**/*
-temp
-
 .DS_Store
 node_modules
+
+.vscode
+.idea
+.env
+.env.local

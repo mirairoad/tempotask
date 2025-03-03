@@ -1,4 +1,4 @@
-import { JobData } from './index.ts';
+import type { JobData } from './job.ts';
 
 export interface WorkerOptions {
   concurrency?: number;

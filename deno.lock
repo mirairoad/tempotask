@@ -4,7 +4,7 @@
     "jsr:@hono/hono@*": "4.7.0",
     "jsr:@p4sca1/cron-schedule@^5.0.3": "5.0.3",
     "npm:@types/node@*": "22.5.4",
-    "npm:ioredis@5.5.0": "5.5.0",
+    "npm:ioredis@^5.5.0": "5.5.0",
     "npm:redis@4.6.4": "4.6.4_@redis+client@1.5.5"
   },
   "jsr": {
@@ -151,9 +151,18 @@
     "https://deno.land/std@0.224.0/http/server.ts": "f9313804bf6467a1704f45f76cb6cd0a3396a3b31c316035e6a4c2035d1ea514"
   },
   "workspace": {
-    "dependencies": [
-      "jsr:@p4sca1/cron-schedule@^5.0.3",
-      "npm:ioredis@5.5.0"
-    ]
+    "members": {
+      "core": {
+        "dependencies": [
+          "jsr:@p4sca1/cron-schedule@^5.0.3",
+          "npm:ioredis@^5.5.0"
+        ]
+      },
+      "examples": {
+        "dependencies": [
+          "npm:ioredis@^5.5.0"
+        ]
+      }
+    }
   }
 }

@@ -121,14 +121,22 @@ interface Task {
 - **Scalable**: Easy horizontal scaling
 - **Modern**: Full TypeScript support
 - **Lightweight**: Minimal dependencies
+- **Dashboard**: Built-in web UI for monitoring
+- **Deno-first**: Optimized for Deno's runtime
+
+## Job Status States
+
+Jobs in Redis-MQ can have the following statuses:
+- **waiting**: Job queued and waiting to be processed
+- **processing**: Currently being executed
+- **completed**: Successfully processed
+- **failed**: Execution resulted in an error
+- **delayed**: Scheduled to run at a later time
+- **paused**: Temporarily suspended from processing
 
 ## Runtime Support
 
 - ✅ **Deno**: Native support via JSR
-- ✅ **Node.js**: Full support via JSR's npm compatibility layer
-- ✅ **Bun**: Compatible through Node.js compatibility
-- ✅ **Cloudflare Workers**: Compatible through Node.js compatibility
-- ✅ **Edge Functions**: Compatible through Node.js compatibility
 
 ## Coming Soon
 - 📊 Real-time monitoring dashboard
@@ -138,6 +146,10 @@ interface Task {
 - 🎯 Job prioritization improvements
 - ⏰ Delayed job execution
 - 🔁 Job retry mechanisms
+
+## Admin Dashboard
+
+Redis-MQ comes with a built-in dashboard UI for monitoring and managing your jobs:
 
 ## License
 

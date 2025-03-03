@@ -4,7 +4,6 @@ import {
 ExtJobData,
   JobData,
   JobHandler,
-  NextJobEntry,
   RedisConnection,
   WorkerEvent,
   WorkerEventMap,
@@ -58,6 +57,18 @@ export class Worker extends EventTarget {
    * Set of currently running jobs as promises.
    */
   readonly #activeJobs = new Set<Promise<void>>();
+
+  // Improved messages for job status changes
+  private readonly JOB_STATUS_MESSAGES = {
+    processing: 'Job execution started',
+    completed: 'Job completed successfully',
+    delayed: (date: string) => `Job delayed until ${date}`,
+    waiting: 'Job queued and waiting to be processed',
+    failed: (error: string) => `Job failed: ${error}`,
+    recovered: 'Job recovered from waiting queue and requeued',
+    paused: 'Job execution paused',
+    resumed: 'Job execution resumed'
+  };
 
   /**
    * Constructs a new worker for the given queue.
@@ -117,20 +128,106 @@ export class Worker extends EventTarget {
     return this.#processingFinished;
   }
 
-  async #processJobsLoop(
-    options: { signal?: AbortSignal; controller: AbortController },
-  ) {
+  /**
+   * Process a single job item
+   */
+  async #processJobItem(job: JobData, signal?: AbortSignal, controller?: AbortController): Promise<void> {
+    // Wait if we've hit concurrency limit
+    while (this.#activeJobs.size >= this.options.concurrency) {
+      await Promise.race([
+        Promise.race(this.#activeJobs),
+        delay(this.options.pollIntervalMs)
+      ]);
+      
+      // Check abort signal again after waiting
+      if (signal?.aborted || controller?.signal.aborted) {
+        return;
+      }
+    }
+    
+    const now = new Date();
+    const jobDelay = new Date(job.delayUntil);
+
+    // Skip jobs that aren't ready yet
+    if (jobDelay > now) {
+      await delay(1000);
+      
+      // Ensure job has logs array
+      if (!job.logs) {
+        job.logs = [];
+      }
+      
+      // Add status change to delayed in logs if not already delayed
+      if (job.status !== 'delayed') {
+        job.logs.push({
+          message: this.JOB_STATUS_MESSAGES.delayed(jobDelay.toISOString()),
+          timestamp: Date.now(),
+        });
+      }
+      
+      job.status = 'delayed';
+      // Use the original job timestamp instead of creating a new one
+      const cacheKey = `queues:${this.key}:${job.id}:${job.status}`;
+      
+      if (!this.cache.has(cacheKey)) {
+        // Store the original timestamp
+        this.cache.set(cacheKey, job.timestamp);
+        this.db.set(cacheKey, JSON.stringify(job));
+      } else if (job.timestamp !== this.cache.get(cacheKey)) {
+        this.cache.set(cacheKey, job.timestamp);
+        this.db.set(cacheKey, JSON.stringify(job));
+      }
+
+      // Keep the original timestamp when re-adding to stream
+      await this.streamdb.xadd(
+        `${this.key}-stream`,
+        '*',
+        'data',
+        JSON.stringify({
+          ...job,
+          timestamp: job.timestamp 
+        })
+      );
+      return;
+    }
+
+    // Create a promise for this job's processing
+    const jobPromise = (async () => {
+      try {
+        await this.#processJob(job);
+      } catch (error) {
+        console.error(`Job ${job.id} processing error:`, error);
+      } finally {
+        // @ts-ignore
+        this.#activeJobs.delete(jobPromise);
+      }
+    })();
+
+    // Track the active job
+    this.#activeJobs.add(jobPromise);
+  }
+
+  async #processJobsLoop(options: { signal?: AbortSignal; controller: AbortController }) {
     const { signal, controller } = options;
     this.#isProcessing = true;
+    let recoveryInterval = 0;
 
     try {
       while (true) {
-        console.log(this.db.options?.db, this.streamdb.options?.db);
         // Check abort signal
         if (signal?.aborted || controller.signal.aborted) {
           break;
         }
 
+        // Periodically check for waiting jobs that need recovery
+        if (recoveryInterval++ > 10) { // Run recovery every ~10 cycles
+          recoveryInterval = 0;
+          const recovered = await this.recoverWaitingJobs();
+          if (recovered > 0) {
+            console.log(`Recovered ${recovered} waiting jobs`);
+          }
+        }
+        
         // Check if queue is paused
         const pausedKey = `queues:${this.key}:paused`;
         const isPaused = await this.db.get(pausedKey);
@@ -139,11 +236,9 @@ export class Worker extends EventTarget {
           await delay(this.options.pollIntervalMs);
           continue;
         }
-
         try {
           // Get jobs from the stream using consumer group
           const jobs: JobData[] = await this.readQueueStream(this.key);
-          // console.log(jobs);
 
           if (jobs.length === 0) {
             await delay(this.options.pollIntervalMs);
@@ -151,77 +246,45 @@ export class Worker extends EventTarget {
           }
 
           // Process jobs that are ready
-          for (const job of jobs) {
-            // console.log(job.paused);
-            if(job.paused) {
-              await delay(this.options.pollIntervalMs);
-              continue;
-            }
-            // Wait if we've hit concurrency limit
-            while (this.#activeJobs.size >= this.options.concurrency) {
-              await Promise.race([
-                Promise.race(this.#activeJobs),
-                delay(this.options.pollIntervalMs)
-              ]);
+          if (jobs.length > 0) {
+            // Use pipelining to fetch all job statuses in a single Redis roundtrip
+            if (!this.db || typeof this.db.pipeline !== 'function') {
+              console.warn('Redis connection does not support pipelining, falling back to individual requests');
+              // Process jobs sequentially as fallback
+              for (const job of jobs) {
+                const jobData = await this.db?.get(`queues:${this.key}:${job.id}:${job.status}`);
+                job.paused = jobData ? JSON.parse(jobData)?.paused : false;
+                                
+                if(job.paused) {
+                  continue; // Skip paused jobs
+                }
+                
+                await this.#processJobItem(job, signal, controller);
+              }
+            } else {
+              const pipeline = this.db.pipeline();
               
-              // Check abort signal again after waiting
-              if (signal?.aborted || controller.signal.aborted) {
-                return;
+              // Add all get commands to the pipeline
+              for (const job of jobs) {
+                pipeline.get(`queues:${this.key}:${job.id}:${job.status}`);
               }
-            }
-
-            const now = new Date();
-            const jobDelay = new Date(job.delayUntil);
-
-            // Skip jobs that aren't ready yet
-            if (jobDelay > now) {
-              await delay(1000);
-              // await this.db.del(`queues:${this.key}:${job.id}:waiting`);
-              job.status = 'delayed';
-              // Use the original job timestamp instead of creating a new one
-              const cacheKey = `queues:${this.key}:${job.id}:${job.status}`;
               
-              if (!this.cache.has(cacheKey)) {
-                // Store the original timestamp
-                this.cache.set(cacheKey, job.timestamp);
-                this.db.set(cacheKey, JSON.stringify(job));
-              }else if (job.timestamp !== this.cache.get(cacheKey)) {
-                this.cache.set(cacheKey, job.timestamp);
-                this.db.set(cacheKey, JSON.stringify(job));
+              // Execute all commands in a single roundtrip
+              const results = await pipeline.exec();
+              // Process jobs with their status data
+              for (let i = 0; i < jobs.length; i++) {
+                const job = jobs[i];
+                const result = results[i];
+                const jobData = result?.[1] || null;
+                job.paused = jobData ? JSON.parse(jobData)?.paused : false;
+                                
+                if(job.paused) {
+                  continue; // Skip paused jobs
+                }
+                
+                await this.#processJobItem(job, signal, controller);
               }
-              // console.log('Caching timestamp:', job.timestamp, this.cache.get(cacheKey));
-
-              // Keep the original timestamp when re-adding to stream
-              await this.streamdb.xadd(
-                `${this.key}-stream`,
-                '*',
-                'data',
-                JSON.stringify({
-                  ...job,
-                  // Don't update the timestamp, keep the original
-                  // lastRun: Date.now(),
-                  timestamp: job.timestamp 
-                })
-              );
-              continue;
             }
-            // console.log(`queues:${this.key}:${job.id}:${job.status}`)
-
-            // Create a promise for this job's processing
-            const jobPromise = (async () => {
-              try {
-                await this.#processJob(job);
-              } catch (error) {
-                console.error(`Job ${job.id} processing error:`, error);
-              } finally {
-                // @ts-ignore
-                this.#activeJobs.delete(jobPromise);
-              }
-            })();
-        
-
-            // Track the active job
-            this.#activeJobs.add(jobPromise);
           }
         } catch (error) {
           console.error('Error in processing loop:', error);
@@ -233,17 +296,47 @@ export class Worker extends EventTarget {
     }
   }
 
+  /**
+   * Process a job and ensure logs are captured from job.logger calls
+   */
   async #processJob(jobEntry: JobData): Promise<void> {
     try {
       await this.db.del(`queues:${this.key}:${jobEntry.id}:${jobEntry.status}`);
-      // Update status to processing
+      // console.log(this.db.options?.db, this.streamdb.options?.db);
+      // Ensure job has a logs array
+      if (!jobEntry.logs) {
+        jobEntry.logs = [];
+      }
 
+      // Add logger function to the job if not already present
+      if (!jobEntry.logger) {
+        jobEntry.logger = async (message: string | object) => {
+          const logEntry = {
+            message: typeof message === 'string' ? message : JSON.stringify(message),
+            timestamp: Date.now()
+          };
+          
+          // Add to in-memory logs array
+          jobEntry.logs?.push(logEntry);
+          
+          // For real-time tracking, consider also writing log directly to Redis
+          await this.db.set(`queues:${this.key}:${jobEntry.id}:logs:${crypto.randomUUID()}`, 
+            JSON.stringify(logEntry));
+        };
+      }
+      
+      // Add processing status to logs only if moving to processing state
+      // and not a delayed/repeated job
+      if (jobEntry.status !== 'processing') {
+        jobEntry.logs.push({
+          message: this.JOB_STATUS_MESSAGES.processing,
+          timestamp: Date.now(),
+        });
+      }
+      
+      // Update status to processing
       const processingData = {
         ...jobEntry,
-        logs: [...(jobEntry.logs || []), {
-          message: 'processing',
-          timestamp: Date.now(),
-        }],
         lastRun: Date.now(),
         status: 'processing',
       };
@@ -251,15 +344,20 @@ export class Worker extends EventTarget {
       // Store processing state
       const processingKey = `queues:${this.key}:${processingData.id}:${processingData.status}`;
       await this.db.set(processingKey, JSON.stringify(processingData));
-      // console.log(`queues:${this.key}:${processingData.id}:${processingData.status}`)
+      
       // Process the job
       await this.handler(processingData as unknown as ExtJobData, {});
-
-      // Update to completed state
+      
+      // After processing, get any logs that may have been added during execution
+      // by retrieving the latest version from Redis
+      const currentJobData = await this.db.get(processingKey);
+      const currentJob = currentJobData ? JSON.parse(currentJobData) : processingData;
+      
+      // Combine the logs and update status to completed
       const completedData = {
-        ...processingData,
-        logs: [...(processingData.logs || []), {
-          message: 'the task has been completed',
+        ...currentJob,
+        logs: [...(currentJob.logs || []), {
+          message: this.JOB_STATUS_MESSAGES.completed,
           timestamp: Date.now()
         }],
         status: 'completed',
@@ -600,5 +698,85 @@ export class Worker extends EventTarget {
     options?: boolean | AddEventListenerOptions,
   ): void {
     super.addEventListener(type, listener, options);
+  }
+
+  // Add this method to scan for and recover waiting jobs
+  async recoverWaitingJobs(): Promise<number> {
+    // Scan Redis for waiting jobs that should be requeued
+    const pattern = `queues:${this.key}:*:waiting`;
+    let cursor = '0';
+    let recovered = 0;
+    
+    do {
+      // Scan for waiting jobs
+      const [nextCursor, keys] = await this.db.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      
+      if (keys.length === 0) continue;
+      
+      // Use pipeline for efficiency
+      const pipeline = this.db.pipeline ? this.db.pipeline() : null;
+      
+      for (const key of keys) {
+        // Get job data
+        if (pipeline) {
+          pipeline.get(key);
+        } else {
+          const jobData = await this.db.get(key);
+          if (jobData) {
+            const job = JSON.parse(jobData);
+            // Ensure logs array exists
+            if (!job.logs) {
+              job.logs = [];
+            }
+            
+            // Add recovered status to logs
+            job.logs.push({
+              message: this.JOB_STATUS_MESSAGES.recovered,
+              timestamp: Date.now()
+            });
+            
+            await this.streamdb.xadd(
+              `${this.key}-stream`,
+              '*',
+              'data',
+              JSON.stringify(job)
+            );
+            recovered++;
+          }
+        }
+      }
+      
+      // If pipelining is supported, process the results
+      if (pipeline) {
+        const results = await pipeline.exec();
+        for (const [err, jobData] of results) {
+          if (!err && jobData) {
+            const job = JSON.parse(jobData);
+            
+            // Ensure logs array exists
+            if (!job.logs) {
+              job.logs = [];
+            }
+            
+            // Add recovered status to logs
+            job.logs.push({
+              message: this.JOB_STATUS_MESSAGES.recovered,
+              timestamp: Date.now()
+            });
+            
+            await this.streamdb.xadd(
+              `${this.key}-stream`,
+              '*',
+              'data',
+              JSON.stringify(job)
+            );
+            recovered++;
+          }
+        }
+      }
+    } while (cursor !== '0');
+    
+    return recovered;
   }
 }

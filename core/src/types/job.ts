@@ -22,7 +22,8 @@ export interface JobData {
   retryCount: number;
   retryDelayMs: number;
   paused: boolean;
-  logs?: {
+  logger: (message: string | object) => Promise<void>;
+  logs: {
     message: string;
     timestamp: number;
   }[];
@@ -63,5 +64,30 @@ export interface JobHandler{
   ctx: unknown): Promise<void>
 }
  
+// Any shared types or interfaces can be defined here
+export interface JobQueueManagerOptions {
+  concurrency?: number;
+}
+
+export type JobType = {
+  path: string;
+  handler: JobHandler;
+  options?: JobOptions;
+};
+
+export interface defaultContext {
+  addJob: (path: string, data: unknown, options?: JobOptions) => void;
+}
+
+export interface ExtHandler<T> {
+  (job: ExtJobData, ctx: T): Promise<void> | void
+}
+
+export type Job<T> = {
+  path: string;
+  handler: ExtHandler<T & defaultContext>;
+  options?: JobOptions;
+};
+
   // update: (job: Partial<JobData>) => Promise<void>,
   // helpers: { stopProcessing: () => void }; 
