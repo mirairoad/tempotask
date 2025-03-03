@@ -34,7 +34,7 @@ export class HonoAdaptor {
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
   }
 
-  initRouter() {
+  initRouter(): Hono {
     return this.router;
   }
   
@@ -63,7 +63,7 @@ export class HonoAdaptor {
     };
   }
 
-  getHTML() {
+  getHTML(): HonoClosure {
     return async (c: Context) => {
       const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
       // use cwd to read the file
