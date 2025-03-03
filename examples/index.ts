@@ -48,14 +48,14 @@ const contextApp: AppContext = {
 }; 
 
 // initialize the queue manager
-const jqm = QueueManager.init(db, contextApp, cpuCount, { maxJobsPerStatus: 300 });
+const tempotask = QueueManager.init(db, contextApp, cpuCount, { maxJobsPerStatus: 300 });
 
 // register jobs
-jqm.registerJob(helloWorld); // cron
-jqm.registerJob(multiJobs); // cron
-jqm.registerJob(startScheduler); // cron
-jqm.registerJob(onRequest); // no cron
+tempotask.registerJob(helloWorld); // cron
+tempotask.registerJob(multiJobs); // cron
+tempotask.registerJob(startScheduler); // cron
+tempotask.registerJob(onRequest); // no cron
 
 // process jobs
-jqm.processJobs();
-export { jqm }
+tempotask.processJobs();
+export { tempotask }
