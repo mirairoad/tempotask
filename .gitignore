@@ -1,6 +1,7 @@
-examples
-examples/*
-examples/**/*
-
 .DS_Store
 node_modules
+
+.vscode
+.idea
+.env
+.env.local

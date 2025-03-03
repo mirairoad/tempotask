@@ -1,14 +1,16 @@
 export default {
   path: 'crons/hello-world',
-  run: (ctx: unknown, job: unknown) => {
+  handler: (ctx:unknown, job: unknown) => {
     console.log(
-      '%c- running hello-world.ts from cron-queue',
+      '%c- runs every 1 minutes',
       'color: white; background-color: red;',
     );
+    setTimeout(() => {
+    }, 5000);
   },
   options: {
     repeat: {
-      pattern: '*/5 * * * * *', // every 2 minutes
+      pattern: '* * * * *',
     },
     retryCount: 3,
     retryDelayMs: 15000,
