@@ -1,8 +1,8 @@
 {
-  "name": "@leotermine/redismq-workspace",
+  "name": "@leotermine/tempotask-workspace",
   "workspaces": [
     "core/",
-    "adapters/"
+    "examples/"
   ],
   "tasks": {
     "dev": "deno run -A --watch examples/server.ts"

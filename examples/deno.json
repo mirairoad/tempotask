@@ -1,11 +1,11 @@
 {
-    "name": "@leotermine/redismq-examples",
+    "name": "@leotermine/tempotask-examples",
     "version": "0.0.1",
-    "description": "examples for redismq",
+    "description": "examples for tempotask",
     "license": "MIT",
     "repository": {
       "type": "git",
-      "url": "https://github.com/mirairoad/redismq"
+      "url": "https://github.com/mirairoad/tempotask"
     },
     "imports": {
       "@core/": "../core/src/",
