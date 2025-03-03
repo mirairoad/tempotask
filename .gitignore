@@ -5,5 +5,3 @@ node_modules
 .idea
 .env
 .env.local
-
-core/README.md
