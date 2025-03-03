@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { QueueManager } from '../libs/queue-manager.ts';
 
+type HonoClosure = (c: Context) => Promise<Response> | Response;
 export class HonoAdaptor {
   private router: Hono;
   private title: string;
@@ -63,9 +64,8 @@ export class HonoAdaptor {
   }
 
   getHTML() {
-    return (c: Context) => {
+    return async (c: Context) => {
       const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
-      // './src/client/index.html'
       // use cwd to read the file
       const fileHtml = Deno.readTextFileSync(import.meta.dirname + '/../client/index.html');
       const html = fileHtml
@@ -78,7 +78,7 @@ export class HonoAdaptor {
     };
   }
 
-  pauseQueueController() {
+  pauseQueueController(): HonoClosure {
     return (c: Context) => {
       const { name } = c.req.param();
       this.jobQueueManager.pauseQueue(name);
@@ -86,8 +86,8 @@ export class HonoAdaptor {
     };
   }
 
-  resumeQueueController() {
-    return (c: Context) => {
+  resumeQueueController(): HonoClosure {
+    return async (c: Context) => {
       const { name } = c.req.param();
       this.jobQueueManager.resumeQueue(name);
       return c.json({ success: true });

@@ -281,7 +281,7 @@ export class QueueManager {
    * Gets jobs formatted for UI display, with automatic trimming when needed
    * @param maxJobsPerStatus Maximum number of jobs to display per status (default: 200)
    */
-  async getJobsForUI(maxJobsPerStatus: number = this.maxJobsPerStatus) {
+  async getJobsForUI(maxJobsPerStatus: number = this.maxJobsPerStatus): Promise<any[]> {
     try {
       const foundJobs = await this.getJobs();
       const jobs = foundJobs.filter((job: any) => job.state?.path);
@@ -387,7 +387,7 @@ export class QueueManager {
    * Gets all active jobs from the database
    * @returns Array of active jobs
    */
-  async getJobs() {
+  async getJobs(): Promise<any[]> {
   const activeJobs = [];
   let cursor = '0';
   
@@ -468,7 +468,7 @@ export class QueueManager {
    * @param id - Job ID to retrieve
    * @returns Job data or null if not found
    */
-  async getJobById(id: string) {
+  async getJobById(id: string): Promise<any | null> {
     try {
       const foundJob = await this.db.get(`${id}`);
       return foundJob ? JSON.parse(foundJob) : null;
@@ -483,7 +483,7 @@ export class QueueManager {
    * @param id - Job ID to toggle pause state
    * @returns 'OK' if paused, null if unpaused or error
    */
-  async togglePauseJobById(id: string) {
+  async togglePauseJobById(id: string): Promise<string | null> {
     try {
       const foundJob = await this.db.get(`${id}`);
       if(!foundJob) return null;
@@ -509,7 +509,7 @@ export class QueueManager {
    * @param id - Job ID to delete
    * @returns 'OK' if deleted, null otherwise
    */
-  async deleteJobById(id: string) {
+  async deleteJobById(id: string): Promise<string | null> {
     const deletedJob = await this.db.del(`${id}`);
     try {
       if(deletedJob) {
@@ -527,7 +527,7 @@ export class QueueManager {
    * @param queueStatus - String in format "queueName:status"
    * @returns 'OK' if deleted, null if error
    */
-  async deleteAllJobs(queueStatus: string) {
+  async deleteAllJobs(queueStatus: string): Promise<string | null> {
     try{ 
       const queueName = queueStatus.split(':')[0];
       const status = queueStatus.split(':')[1];
