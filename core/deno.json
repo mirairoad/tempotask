@@ -1,6 +1,6 @@
 {
     "name": "@leotermine/tempotask",
-    "version": "0.50.6",
+    "version": "0.50.7",
     "description": "A simple and efficient job queue system for Deno. Built on Redis, it offers high-performance task scheduling and processing with Deno's modern runtime.",
     "license": "MIT",
     "repository": {
@@ -21,6 +21,11 @@
         "**/.DS_Store",
         "Makefile",
         "tests/"
+      ],
+      "include": [
+        "../README.md",
+        "../license",
+        "src/"
       ]
     },
     "fmt": {
