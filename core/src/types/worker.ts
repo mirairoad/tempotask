@@ -1,5 +1,8 @@
 import type { JobData } from './job.ts';
 
+/**
+ * Represents the options for the worker
+ */
 export interface WorkerOptions {
   concurrency?: number;
   lockDurationMs?: number;
@@ -7,6 +10,9 @@ export interface WorkerOptions {
   pollIntervalMs?: number;
 }
 
+/**
+ * Represents the event map for the worker
+ */
 export interface WorkerEventMap {
   error: CustomEvent<{
     error: Error;
@@ -14,4 +20,7 @@ export interface WorkerEventMap {
   }>;
 }
 
+/**
+ * Represents the event type for the worker
+ */
 export type WorkerEvent = keyof WorkerEventMap; 

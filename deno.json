@@ -1,6 +1,5 @@
 {
-  "name": "@leotermine/tempotask-workspace",
-  "workspaces": [
+  "workspace": [
     "core/",
     "examples/"
   ],

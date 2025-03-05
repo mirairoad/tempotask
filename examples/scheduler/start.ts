@@ -1,7 +1,14 @@
-import type { Job } from '@core/types/index.ts';
+import type { Task } from '@core/types/index.ts';
 import type { AppContext } from '../index.ts';
 
-const job: Job<AppContext> = {
+type DataStructure = {
+  users: {
+    name: string;
+    email: string;
+  }[]
+}
+
+const task: Task<DataStructure, AppContext> = {
   path: 'scheduler/start',
   handler: async (job, ctx) => {
     console.log(
@@ -38,4 +45,4 @@ const job: Job<AppContext> = {
   },
 };
 
-export default job;
+export default task;

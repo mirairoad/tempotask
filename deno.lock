@@ -2,6 +2,7 @@
   "version": "4",
   "specifiers": {
     "jsr:@hono/hono@*": "4.7.0",
+    "jsr:@hono/hono@^4.7.2": "4.7.2",
     "jsr:@p4sca1/cron-schedule@^5.0.3": "5.0.3",
     "npm:@types/node@*": "22.5.4",
     "npm:ioredis@^5.5.0": "5.5.0",
@@ -10,6 +11,9 @@
   "jsr": {
     "@hono/hono@4.7.0": {
       "integrity": "1eb10e1976d3dda22ab43115ecfa348a43cd17c8aea5c0039c9757ebded624f8"
+    },
+    "@hono/hono@4.7.2": {
+      "integrity": "73466a24bd6eb3b527cde18e59ca5543890ddacb4312fc0bc7504d28a7e57a38"
     },
     "@p4sca1/cron-schedule@5.0.3": {
       "integrity": "8272d8afe9169f38d870e66c59da9b1173fd9c644293f26d8e5e0b20d88cbf1f"
@@ -154,12 +158,15 @@
     "members": {
       "core": {
         "dependencies": [
+          "jsr:@hono/hono@^4.7.2",
           "jsr:@p4sca1/cron-schedule@^5.0.3",
           "npm:ioredis@^5.5.0"
         ]
       },
       "examples": {
         "dependencies": [
+          "jsr:@hono/hono@^4.7.2",
+          "jsr:@p4sca1/cron-schedule@^5.0.3",
           "npm:ioredis@^5.5.0"
         ]
       }

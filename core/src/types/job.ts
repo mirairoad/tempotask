@@ -1,3 +1,7 @@
+/**
+ * Represents the state of a job
+ * @template C - The type of data the job expects
+ */
 export interface JobState {
   name: string;
   data?: unknown;
@@ -5,6 +9,10 @@ export interface JobState {
   path: string;
 }
 
+/**
+ * Represents the data of a job
+ * @template C - The type of data the job expects
+ */
 export interface JobData {
   id: string;
   messageId: string;
@@ -31,6 +39,10 @@ export interface JobData {
   timestamp: number;
 }
 
+/**
+ * Represents the options for a job
+ * @template C - The type of data the job expects
+ */
 export interface JobOptions {
   id?: string;
   priority?: number;
@@ -49,45 +61,122 @@ export interface JobOptions {
   errors?: string[];
 }
 
+/**
+ * Represents a job to be pushed to the queue
+ * @template C - The type of data the job expects
+ */
 export interface PushJob {
   name: string;
   data?: unknown;
   options?: JobOptions;
 }
 
-export interface ExtJobData extends JobState {
-  logger: (message: string | object) => Promise<void> 
+/**
+ * Represents the extended job data with generic type support
+ * @template C - The type of data the job expects
+ */
+export interface ExtJobData<C> extends JobState {
+  logger: (message: string | object) => Promise<void>
+  data?: C
 }
 
-export interface JobHandler{
-  (job: ExtJobData,
+/**
+ * Represents a job handler function
+ * @template C - The type of data the job expects
+ */
+export interface JobHandler<C> {
+  (job: ExtJobData<C>,
   ctx: unknown): Promise<void>
 }
- 
-// Any shared types or interfaces can be defined here
+
+/**
+ * Represents the options for the job queue manager
+ * @template C - The type of data the job expects
+ */
 export interface JobQueueManagerOptions {
   concurrency?: number;
 }
 
-export type JobType = {
+/**
+ * Represents a job definition with handler and configuration
+ * @template C - The type of data the job expects
+ * @template T - The type of context the job will receive
+ */
+export type JobType<C> = {
   path: string;
-  handler: JobHandler;
+  handler: JobHandler<C>;
   options?: JobOptions;
 };
 
+/**
+ * Represents the default context object that will be passed to the job handler
+ * @template T - The type of context the job will receive
+ */
 export interface defaultContext {
   addJob: (path: string, data: unknown, options?: JobOptions) => void;
 }
 
-export interface ExtHandler<T> {
-  (job: ExtJobData, ctx: T): Promise<void> | void
+/**
+ * Represents the context object that will be passed to the job handler
+ * @template T - The type of context the job will receive
+ */
+export interface ExtHandler<T, C> {
+  (job: C, ctx: T): Promise<void> | void
 }
 
-export type Job<T> = {
+/**
+ * Represents a job definition with handler and configuration
+ * @template C - The type of data the job expects
+ * @template T - The type of context the job will receive
+ * 
+ * @example
+ * ```typescript
+ * import type { Job } from '@core/types/index.ts';
+ * import type { AppContext } from '../index.ts';
+ * 
+ * // Define the data structure for your job
+ * type DataStructure = {
+ *   users: {
+ *     name: string;
+ *     email: string;
+ *   }[]
+ * }
+ * 
+ * // Create a job definition
+ * const job: Job<DataStructure, AppContext> = {
+ *   path: 'scheduler/start',
+ *   handler: async (job, ctx) => {
+ *     console.log('- runs every 30 seconds');
+ *     
+ *     // Create child jobs with the context
+ *     for (let i = 0; i < 10; i++) {
+ *       ctx.addJob('scheduler/onrequest', {
+ *         name: 'John Wick',
+ *         email: 'john.wick@example.com'
+ *       }, {
+ *         id: `scheduler-${i}`
+ *       });
+ *     }
+ *     
+ *     // Use the job logger
+ *     await job.logger('Job execution completed');
+ *   },
+ *   options: {
+ *     repeat: {
+ *       pattern: "* * * * *"
+ *     },
+ *     attempts: 3
+ *   }
+ * };
+ * 
+ * export default job;
+ * ```
+ */
+export interface Task<C, T> {
   path: string;
-  handler: ExtHandler<T & defaultContext>;
+  handler: ExtHandler<T & defaultContext, ExtJobData<C>>;
   options?: JobOptions;
-};
+}
 
   // update: (job: Partial<JobData>) => Promise<void>,
   // helpers: { stopProcessing: () => void }; 
