@@ -10,6 +10,10 @@ ExtJobData,
   WorkerOptions
 } from '../types/index.ts';
 import { delay, isRedisConnection, retry } from '../utils/index.ts';
+
+/**
+ * Represents a worker for processing jobs
+ */
 export class Worker extends EventTarget {
   /**
    * Redis client to use for accessing the queue.
@@ -26,7 +30,7 @@ export class Worker extends EventTarget {
   /**
    * The function that processes the jobs.
    */
-  handler: JobHandler;
+  handler: JobHandler<any>;
 
   /**
    * Worker options.
@@ -81,7 +85,7 @@ export class Worker extends EventTarget {
   constructor(
     db: unknown,
     key: string,
-    handler: JobHandler,
+    handler: JobHandler<any>,
     options: WorkerOptions = {},
     streamdb?: RedisConnection,
   ) {
@@ -270,11 +274,11 @@ export class Worker extends EventTarget {
               }
               
               // Execute all commands in a single roundtrip
-              const results = await pipeline.exec();
+              const results = await pipeline.exec() as [Error | null, string | null][];
               // Process jobs with their status data
               for (let i = 0; i < jobs.length; i++) {
                 const job = jobs[i];
-                const result = results[i];
+                const result = results?.[i];
                 const jobData = result?.[1] || null;
                 job.paused = jobData ? JSON.parse(jobData)?.paused : false;
                                 
@@ -346,7 +350,7 @@ export class Worker extends EventTarget {
       await this.db.set(processingKey, JSON.stringify(processingData));
       
       // Process the job
-      await this.handler(processingData as unknown as ExtJobData, {});
+      await this.handler(processingData as unknown as ExtJobData<any>, {});
       
       // After processing, get any logs that may have been added during execution
       // by retrieving the latest version from Redis
@@ -577,20 +581,26 @@ export class Worker extends EventTarget {
         count
       );
 
+      interface PendingMessage {
+        id: string;
+        lastDelivered: number;
+      }
+
       if (pendingMessages?.length) {
         // Claim messages that have been pending too long
         const now = Date.now();
-        const claimIds = pendingMessages
-          .filter((msg: { lastDelivered: number }) => (now - msg.lastDelivered) > 30000) // 30 seconds threshold
-          .map((msg: { id: string }) => msg.id);
+        const claimIds = (pendingMessages as PendingMessage[])
+          .filter((msg) => (now - msg.lastDelivered) > 30000) // 30 seconds threshold
+          .map((msg) => msg.id);
 
         if (claimIds.length) {
+          // Redis xclaim expects individual message IDs, not an array
           await this.streamdb.xclaim(
             `${queueName}-stream`,
             'workers',
             consumerId,
             30000, // Min idle time
-            claimIds
+            ...claimIds // Spread the array to pass individual IDs
           );
         }
       }
@@ -749,7 +759,7 @@ export class Worker extends EventTarget {
       
       // If pipelining is supported, process the results
       if (pipeline) {
-        const results = await pipeline.exec();
+        const results = await pipeline.exec() as [Error | null, string | null][];
         for (const [err, jobData] of results) {
           if (!err && jobData) {
             const job = JSON.parse(jobData);

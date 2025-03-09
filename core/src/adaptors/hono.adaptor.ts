@@ -1,7 +1,20 @@
 import { Hono, type Context } from 'hono';
 import type { QueueManager } from '../libs/queue-manager.ts';
 
+/**
+ * A closure function that returns a Promise<Response> or a Response.
+ * @param c - The context object.
+ * @returns A Promise<Response> or a Response.
+ */
 type HonoClosure = (c: Context) => Promise<Response> | Response;
+
+/**
+ * HonoAdaptor is a class that adapts the QueueManager to the Hono framework.
+ * It provides a router for the dashboard and the API endpoints.
+ * 
+ * @param jobQueueManager - The QueueManager instance to adapt.
+ * @returns A Hono router with the dashboard and API endpoints.
+ */
 export class HonoAdaptor {
   private router: Hono;
   private title: string;
@@ -14,6 +27,9 @@ export class HonoAdaptor {
     this.init();
   }
 
+  /**
+   * Initializes the router with the dashboard and API endpoints.
+   */
   init() {
     // Dashboard routes
     this.router.get('/admin/jobs', this.redirectToDefaultQueue());
@@ -23,7 +39,7 @@ export class HonoAdaptor {
     this.router.get('/admin/jobs/:queue/:tab/:id/:subtab', this.getHTML());
     
     // API endpoints for client
-    this.router.get('/admin/api/jobs', async (c) => c.json(await this.jobQueueManager.getJobsForUI()));
+    this.router.get('/admin/api/jobs', async (c) => c.json(await this.jobQueueManager.getSortedJobs()));
     // API endpoints RAW
     this.router.get('/admin/api/jobs/all', async (c) => c.json(await this.jobQueueManager.getJobs()));
     this.router.get('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.getJobById(c.req.param('id'))));
@@ -34,13 +50,21 @@ export class HonoAdaptor {
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
   }
 
+  /**
+   * Returns the router with the dashboard and API endpoints.
+   * @returns The router with the dashboard and API endpoints.
+   */
   initRouter(): Hono {
     return this.router;
   }
-  
+
+  /**
+   * Redirects to the default queue.
+   * @returns A Promise<Response> or a Response.
+   */
   private redirectToDefaultQueue() {
     return async (c: Context) => {
-      const queues = await this.jobQueueManager.getJobsForUI();
+      const queues = await this.jobQueueManager.getSortedJobs();
       const defaultQueue = queues[0]?.name;
       if (!defaultQueue) {
         return c.text('No queues available', 404);
@@ -49,6 +73,10 @@ export class HonoAdaptor {
     };
   }
 
+  /**
+   * Redirects to the default tab.
+   * @returns A Promise<Response> or a Response.
+   */
   private redirectToDefaultTab() {
     return (c: Context) => {
       const { queue } = c.req.param();
@@ -56,6 +84,10 @@ export class HonoAdaptor {
     };
   }
 
+  /**
+   * Redirects to the default subtab.
+   * @returns A Promise<Response> or a Response.
+   */
   private redirectToDefaultSubtab() {
     return (c: Context) => {
       const { queue, tab, id } = c.req.param();
@@ -63,11 +95,21 @@ export class HonoAdaptor {
     };
   }
 
+  /**
+   * Returns the HTML for the dashboard.
+   * @returns A Promise<Response> or a Response.
+   */
   getHTML(): HonoClosure {
     return async (c: Context) => {
       const { queue, tab = 'latest', id, subtab = 'information' } = c.req.param();
-      // use cwd to read the file
-      const fileHtml = Deno.readTextFileSync(import.meta.dirname + '/../client/index.html');
+      
+      // Fix path resolution with URL-based approach
+      const clientDir = new URL('../client/', import.meta.url);
+      const htmlPath = new URL('index.html', clientDir);
+      
+      // Read file with proper path
+      const fileHtml = Deno.readTextFileSync(htmlPath);
+      
       const html = fileHtml
         .replace('{{title}}', this.title)
         .replace('{{selectedQueue}}', queue)
@@ -78,6 +120,10 @@ export class HonoAdaptor {
     };
   }
 
+  /**
+   * Pauses a queue.
+   * @returns A Promise<Response> or a Response.
+   */
   pauseQueueController(): HonoClosure {
     return (c: Context) => {
       const { name } = c.req.param();
@@ -86,6 +132,10 @@ export class HonoAdaptor {
     };
   }
 
+  /**
+   * Resumes a queue.
+   * @returns A Promise<Response> or a Response.
+   */
   resumeQueueController(): HonoClosure {
     return async (c: Context) => {
       const { name } = c.req.param();

@@ -13,12 +13,21 @@ import type { Worker } from './worker.ts';
 /**
  * QueueManager class for managing job queues
  */
-export class QueueManager {
+
+//need to remove some methods from the :
+// createConsumerGroup
+// logger
+// trimJobs
+
+interface QueueManagerInterface extends Omit<QueueManager, 'createConsumerGroup' | 'logger' | 'trimJobs'> {
+}
+
+export class QueueManager implements QueueManagerInterface {
   private static instance: QueueManager;
   private queues: { [key: string]: { [key: string]: Queue } } = {};
   private workers: { [key: string]: Worker } = {};
   private handlers: {
-    [key: string]: { [key: string]: JobHandler };
+    [key: string]: { [key: string]: JobHandler<any> };
   } = {};
   private db: RedisConnection;
   private ctx: unknown;
@@ -85,7 +94,7 @@ export class QueueManager {
    * @param queueName - Name of the queue to create a consumer group for
    * @throws Error if queue name is not provided
    */
-  async createConsumerGroup(queueName: string): Promise<void> {
+  private async createConsumerGroup(queueName: string): Promise<void> {
     if (!queueName) {
       throw new Error('queueName is required');
     }
@@ -108,7 +117,7 @@ export class QueueManager {
    * @param job - Job configuration
    * @throws Error if job path is invalid
    */
-  registerJob(job: { path: string, handler: (job: ExtJobData, ctx: any) => void, options?: JobOptions }): void {
+  registerJob(job: { path: string, handler: (job: ExtJobData<any>, ctx: any) => void, options?: JobOptions }): void {
     if (!job.path) {
       throw new Error(`maximum '/'`);
     }
@@ -141,7 +150,7 @@ export class QueueManager {
     this.handlers[queueName] = {
       ...this.handlers[queueName],
       [jobName]: job.handler,
-    } as unknown as { [key: string]: JobHandler };
+    } as unknown as { [key: string]: JobHandler<any> };
     
     const worker = queue.createWorker(async (jobData: JobData) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -169,7 +178,7 @@ export class QueueManager {
    * @param data - Data to pass to the job
    * @param options - Options for the job
    */
-  addJob(path: string, data: unknown = {}, options: JobType['options'] = {}): void {
+  addJob(path: string, data: unknown = {}, options: JobType<any>['options'] = {}): void {
     const optionsLayer = {
       delayUntil: new Date(),
       lockUntil: new Date(),
@@ -215,7 +224,7 @@ export class QueueManager {
     this.trimJobs();
   }
 
-  async logger(job: JobData): Promise<(message: string | object) => Promise<void>> {
+  private async logger(job: JobData): Promise<(message: string | object) => Promise<void>> {
     // Get the job key
     const key = `queues:${job.id.replace(job.state.name, job.state.path.replace('/', ':'))}:${job.status}`;
     
@@ -278,10 +287,12 @@ export class QueueManager {
   // Handle jobs Data
   
   /**
-   * Gets jobs formatted for UI display, with automatic trimming when needed
+   * Gets jobs sorted by queue and status, with automatic trimming when needed
+   * includes calculation of total, waiting, processing, failed, completed, delayed
+   * ideal for the UI or API
    * @param maxJobsPerStatus Maximum number of jobs to display per status (default: 200)
    */
-  async getJobsForUI(maxJobsPerStatus: number = this.maxJobsPerStatus): Promise<any[]> {
+  async getSortedJobs(maxJobsPerStatus: number = this.maxJobsPerStatus): Promise<any[]> {
     try {
       const foundJobs = await this.getJobs();
       const jobs = foundJobs.filter((job: any) => job.state?.path);
@@ -409,8 +420,10 @@ export class QueueManager {
       if (typeof this.db.pipeline === 'function') {
         const pipeline = this.db.pipeline();
         keys.forEach(key => pipeline.get(key));
-        const results = await pipeline.exec();
+        const results = await pipeline.exec() as [Error | null, string | null][];
         
+        if(!results) continue;
+
         results.forEach((result, i) => {
           if (result && result[1]) {
             try {
@@ -531,7 +544,7 @@ export class QueueManager {
     try{ 
       const queueName = queueStatus.split(':')[0];
       const status = queueStatus.split(':')[1];
-      const foundJobs = await this.getJobsForUI();
+      const foundJobs = await this.getSortedJobs();
       const filteredJobs = foundJobs.find((q) => q.name === queueName);
       await Promise.all(filteredJobs?.jobs[status].map((job: any) => this.deleteJobById(`${job.id}:${status}`)));
       return 'OK';}
@@ -546,7 +559,7 @@ export class QueueManager {
    * Keeps only the most recent jobs (default 200 per status)
    * @param maxJobsPerStatus The maximum number of jobs to keep per status category
    */
-  async trimJobs(maxJobsPerStatus: number = this.maxJobsPerStatus): Promise<void> {
+  private async trimJobs(maxJobsPerStatus: number = this.maxJobsPerStatus): Promise<void> {
     try {
       // Get all jobs
       const foundJobs = await this.getJobs();

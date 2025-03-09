@@ -1,4 +1,5 @@
-export default {
+import type { Task } from '@core/types/index.ts';
+const task: Task<unknown, unknown> = {
   path: 'crons/multi-jobs',
   handler: (ctx: unknown, job: unknown) => {
     console.log(
@@ -17,3 +18,5 @@ export default {
     // retryDelayMs: 5000,
   },
 };
+
+export default task;

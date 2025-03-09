@@ -58,4 +58,5 @@ tempotask.registerJob(onRequest); // no cron
 
 // process jobs
 tempotask.processJobs();
+
 export { tempotask }

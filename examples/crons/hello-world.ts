@@ -1,4 +1,6 @@
-export default {
+import type { Task } from '@core/types/index.ts';
+
+const task: Task<unknown, unknown> = {
   path: 'crons/hello-world',
   handler: (ctx:unknown, job: unknown) => {
     console.log(
@@ -17,3 +19,5 @@ export default {
     delayUntil: new Date(Date.now() + 6000000),
   },
 };
+
+export default task;

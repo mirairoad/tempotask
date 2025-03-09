@@ -252,7 +252,7 @@ export class Queue {
     handler: (jobData: JobData) => Promise<void> ,
     options?: WorkerOptions,
   ): Worker {
-    return new Worker(this.db, this.key, handler as unknown as JobHandler, options, this.streamdb);
+    return new Worker(this.db, this.key, handler as unknown as JobHandler<unknown>, options, this.streamdb);
   }
 
   /**
@@ -274,7 +274,13 @@ export class Queue {
    * @returns Generated message ID
    */
   async add(data: Record<string, string>): Promise<string> {
-    const id = await this.streamdb.xadd(this.key + '-stream', '*', data) as string;
+    // Convert object to flattened key-value pairs
+    const args: string[] = [];
+    for (const [key, value] of Object.entries(data)) {
+      args.push(key, value);
+    }
+    
+    const id = await this.streamdb.xadd(this.key + '-stream', '*', ...args) as string;
     await this.xtrim(); // Automatically trim to keep most recent 200 entries
     return id;
   }

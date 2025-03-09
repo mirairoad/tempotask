@@ -1,5 +1,12 @@
 import { delay } from './delay.ts';
 
+/**
+ * Retries an operation a specified number of times with a delay between attempts
+ * @param operation - The operation to retry
+ * @param maxAttempts - The maximum number of attempts
+ * @param delayMs - The delay in milliseconds between attempts
+ * @returns The result of the operation
+ */
 export const retry = async <T>(
     operation: () => Promise<T>,
     maxAttempts: number = 3,

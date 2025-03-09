@@ -1,11 +1,18 @@
-import type { Job } from '@core/types/index.ts';
+import type { Task } from '@core/types/index.ts';
 import type { AppContext } from '../index.ts';
 
-const job: Job<AppContext> = {
+type DataStructure = {
+  users: {
+    name: string;
+    email: string;
+  }[]
+}
+
+const task: Task<DataStructure, AppContext> = {
   path: 'scheduler/start',
   handler: async (job, ctx) => {
     console.log(
-      '%c- runs every 30 seconds',
+      '%c- runs every 2 minutes',
       'color: white; background-color: yellow;',
     );
 
@@ -32,10 +39,10 @@ const job: Job<AppContext> = {
   },
   options: {
     repeat: {
-      pattern: '*/30 * * * * *',
+      pattern: '*/2 * * * *',
     },
     attempts: 3,
   },
 };
 
-export default job;
+export default task;

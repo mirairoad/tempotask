@@ -1,5 +1,10 @@
 import { RedisConnection } from '../types/redis.ts';
 
+/**
+ * Checks if the given object is a RedisConnection
+ * @param db - The object to check
+ * @returns True if the object is a RedisConnection, false otherwise
+ */
 export const isRedisConnection = (db: unknown): db is RedisConnection => {
   return (
     typeof db === 'object' &&
