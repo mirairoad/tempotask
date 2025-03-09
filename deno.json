@@ -1,10 +1,12 @@
 {
   "workspace": [
     "core/",
-    "examples/"
+    "examples/",
+    "apps/dashboard",
+    "apps/www"
   ],
   "tasks": {
-    "dev": "deno run -A --watch examples/server.ts"
+    "dev": "deno run -A --allow-scripts --watch examples/server.ts"
   },
   "nodeModulesDir": "auto"
 }

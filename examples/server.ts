@@ -1,9 +1,25 @@
 import { tempotask } from './index.ts';
 import { Hono } from 'hono';
 import { HonoAdaptor } from "@core/adaptors/hono.adaptor.ts";
+import { cors } from 'hono/cors';
 
 const server = new Hono();
 const dashboard = new HonoAdaptor(tempotask);
+
+// Configure CORS to allow requests from the dashboard
+server.use(cors({
+  origin: [
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://0.0.0.0:3001'
+  ],
+  credentials: true,
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  exposeHeaders: ['Content-Length', 'X-Request-Id'],
+  maxAge: 600,
+}));
+
 server.route('/', dashboard.initRouter());
 
 Deno.serve({ port: 8000 }, server.fetch);
