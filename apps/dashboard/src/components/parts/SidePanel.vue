@@ -33,6 +33,7 @@ const handleClick = async (item: Omit<MenuItem, 'icon'>) => {
         await router.push(item.path);
         if(item.path.startsWith('/admin/queues/')){
             appStore.lastQueuesPath = item.path;
+            appStore.currentQueue = item.title.toLowerCase();
         }
     } catch (error) {
         console.error('Navigation error:', error);
@@ -56,11 +57,6 @@ onMounted(() => {
             router.push(appStore.lastQueuesPath);
         }
     }
-    // const path = route.path.split('/');
-    // console.log(route.path);
-  // Set the page title
-//   console.log(appStore.menuItems[1].items);
-//   appStore.setCurrentPage('Queues');
 });
 </script>
 

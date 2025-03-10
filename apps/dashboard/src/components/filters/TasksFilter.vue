@@ -93,18 +93,18 @@
   
   const fetchStatusCounts = async () => {
     try {
-      const response = await fetch('/admin/api/jobs');
+      const response = await fetch('/admin/api/queues');
       const queues = await response.json();
-      const queueData = queues.find((q: any) => q.name === route.params.queue);
+      const queuedata = queues.find((q: any) => q.name === route.params.queue);
       
-      if (queueData) {
+      if (queuedata) {
         statusCounts.value = {
-          latest: Object.values(queueData.jobs).flat().length,
-          waiting: queueData.jobs.waiting?.length || 0,
-          processing: queueData.jobs.processing?.length || 0,
-          completed: queueData.jobs.completed?.length || 0,
-          failed: queueData.jobs.failed?.length || 0,
-          delayed: queueData.jobs.delayed?.length || 0
+          latest: Object.values(queuedata.jobs).flat().length,
+          waiting: queuedata.jobs.waiting?.length || 0,
+          processing: queuedata.jobs.processing?.length || 0,
+          completed: queuedata.jobs.completed?.length || 0,
+          failed: queuedata.jobs.failed?.length || 0,
+          delayed: queuedata.jobs.delayed?.length || 0
         };
       }
     } catch (error) {

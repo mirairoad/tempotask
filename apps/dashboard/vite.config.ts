@@ -10,7 +10,7 @@ import { defineConfig } from 'vite';
 import vueDevTools from 'vite-plugin-vue-devtools';
 
 const APP_CONFIG = {
-  name: 'admin',
+  name: 'TempoTask',
   port: 3001,
   host: 'localhost',
 };

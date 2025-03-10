@@ -12,7 +12,7 @@ const task: Task<DataStructure, AppContext> = {
   path: 'scheduler/start',
   handler: async (job, ctx) => {
     console.log(
-      '%c- runs every 2 minutes',
+      '%c- runs every 30 seconds',
       'color: white; background-color: yellow;',
     );
 
@@ -39,7 +39,7 @@ const task: Task<DataStructure, AppContext> = {
   },
   options: {
     repeat: {
-      pattern: '*/2 * * * *',
+      pattern: '*/30 * * * * *',
     },
     attempts: 3,
   },

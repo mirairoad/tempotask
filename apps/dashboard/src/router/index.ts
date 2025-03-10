@@ -4,10 +4,10 @@ import { createRouter, createWebHistory } from 'vue-router';
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    {
-      path: '/admin',
-      component: () => import('../views/dashboard/index.vue'),
-    },
+    // {
+    //   path: '/admin',
+    //   component: () => import('../views/dashboard/index.vue'),
+    // },
     {
       path: '/admin/queues',
       component: () => import('../views/queues/index.vue'),
@@ -26,7 +26,7 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/admin',
+      redirect: '/admin/queues',
     },
   ],
 });

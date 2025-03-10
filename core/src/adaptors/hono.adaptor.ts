@@ -39,13 +39,15 @@ export class HonoAdaptor {
     this.router.get('/admin/jobs/:queue/:tab/:id/:subtab', this.getHTML());
     
     // API endpoints for client
-    this.router.get('/admin/api/jobs', async (c) => c.json(await this.jobQueueManager.getSortedJobs()));
+    this.router.get('/admin/api/client-sync', async (c) => c.json(await this.jobQueueManager.getSortedJobs()));
+
+    this.router.get('/admin/api/queues', async (c) => c.json(await this.jobQueueManager.getSortedJobs()));
     // API endpoints RAW
-    this.router.get('/admin/api/jobs/all', async (c) => c.json(await this.jobQueueManager.getJobs()));
-    this.router.get('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.getJobById(c.req.param('id'))));
-    this.router.delete('/admin/api/jobs/:id', async (c) => c.json(await this.jobQueueManager.deleteJobById(c.req.param('id'))));
-    this.router.delete('/admin/api/jobs/all/:queue-status', async (c) => c.json(await this.jobQueueManager.deleteAllJobs(c.req.param('queue-status'))));
-    this.router.post('/admin/api/jobs/:id/pause', async (c) => c.json(await this.jobQueueManager.togglePauseJobById(c.req.param('id'))));
+    this.router.get('/admin/api/queues/all', async (c) => c.json(await this.jobQueueManager.getJobs()));
+    this.router.get('/admin/api/queues/:id', async (c) => c.json(await this.jobQueueManager.getJobById(c.req.param('id'))));
+    this.router.delete('/admin/api/queues/:id', async (c) => c.json(await this.jobQueueManager.deleteJobById(c.req.param('id'))));
+    this.router.delete('/admin/api/queues/all/:queue-status', async (c) => c.json(await this.jobQueueManager.deleteAllJobs(c.req.param('queue-status'))));
+    this.router.post('/admin/api/queues/:id/pause', async (c) => c.json(await this.jobQueueManager.togglePauseJobById(c.req.param('id'))));
     this.router.post('/admin/api/queue/:name/pause', this.pauseQueueController());
     this.router.post('/admin/api/queue/:name/resume', this.resumeQueueController());
   }

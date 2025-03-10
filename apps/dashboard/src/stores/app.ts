@@ -10,9 +10,12 @@ interface Queue {
     total: number;
   };
   paused: boolean;
+  jobs?: {
+    [key: string]: any[];
+  };
 }
 
-interface DataState {
+interface dataState {
   queues: Queue[]
 }
 
@@ -25,6 +28,7 @@ interface ToastMessage {
 }
 
 export const useAppStore = defineStore('app', () => {
+  const title = 'TempoTask';
   const route = useRoute();
   const appFirstLoading = ref(true);
   const loading = ref(false);
@@ -35,15 +39,16 @@ export const useAppStore = defineStore('app', () => {
   const currentPage = ref('Dashboard');
   const currentSubmenu = ref<MenuItem['items']>([]);
   const menuItems = ref<MenuItem[]>([...menuItemsConfig]);
+  const currentQueue = ref('');
   const lastQueuesPath = ref('');
 
-  // Data State
-  const Data = ref<DataState>({
+  // data State
+  const data = ref<dataState>({
     queues: []
   });
 
   // Watch for queue changes and update menu items
-  watch(() => Data.value.queues, (newQueues) => {
+  watch(() => data.value.queues, (newQueues) => {
     if (newQueues.length > 0) {
       updateQueueMenuItems(newQueues);
       
@@ -91,14 +96,78 @@ export const useAppStore = defineStore('app', () => {
     { immediate: true }
   );
 
+
+  const fetchdata = async (queue:string = '') => {
+    // const apiPath = !queue ? '/admin/api/queues' : `/admin/api/queues/${queue}`;
+    const res = await httpHandler.get<Queue[]>('/admin/api/client-sync');
+    if(res.status === 200) {
+      // Progressive update instead of complete replacement
+      if (data.value.queues.length === 0) {
+        // Initial load - set the data directly
+        data.value.queues = res.data;
+      } else {
+        // Update existing queues and add new ones
+        const updatedQueues = [...data.value.queues];
+        
+        // Update existing queues
+        res.data.forEach(newQueue => {
+          const existingIndex = updatedQueues.findIndex(q => q.name === newQueue.name);
+          
+          if (existingIndex >= 0) {
+            // Preserve jobs data structure while updating stats and paused state
+            const existingJobs = updatedQueues[existingIndex].jobs || {};
+            
+            // Update the queue with new data
+            updatedQueues[existingIndex] = {
+              ...newQueue,
+              jobs: newQueue.jobs ? mergeJobsdata(existingJobs, newQueue.jobs) : existingJobs
+            };
+          } else {
+            // Add new queue
+            updatedQueues.push(newQueue);
+          }
+        });
+        
+        // Remove queues that no longer exist
+        const currentQueueNames = res.data.map(q => q.name);
+        const filteredQueues = updatedQueues.filter(q => currentQueueNames.includes(q.name));
+        
+        data.value.queues = filteredQueues;
+      }
+    }
+  }
+  
+  // Helper function to merge jobs data
+  const mergeJobsdata = (existingJobs: {[key: string]: any[]}, newJobs: {[key: string]: any[]}) => {
+    const result = { ...existingJobs };
+    
+    // Process each job status category (waiting, processing, etc.)
+    Object.keys(newJobs).forEach(status => {
+      if (!result[status]) {
+        // If this status doesn't exist in current data, add it
+        result[status] = newJobs[status];
+      } else {
+        // Merge jobs by ID
+        const existingJobsMap = new Map(result[status].map(job => [job.id, job]));
+        
+        // Update existing jobs and add new ones
+        newJobs[status].forEach(newJob => {
+          existingJobsMap.set(newJob.id, newJob);
+        });
+        
+        // Convert back to array
+        result[status] = Array.from(existingJobsMap.values());
+      }
+    });
+    
+    return result;
+  };
+
   // initial data loading
   const initializeApp = async () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      const res = await httpHandler.get<Queue[]>('/admin/api/jobs');
-      if(res.status === 200) {
-        Data.value.queues = res.data;
-      }
+      await fetchdata();
     } finally {
       appFirstLoading.value = false;
     }
@@ -201,8 +270,24 @@ export const useAppStore = defineStore('app', () => {
         const subItem = menuItem.items.find((item:MenuItem) => item.path === path);
         if (subItem) {
           currentPage.value = subItem.title;
+          // Update document title with submenu item title
+          updateDocumentTitle(subItem.title);
+        } else {
+          // Update document title with main menu item title
+          updateDocumentTitle(menuItem.title);
         }
+      } else {
+        // Update document title with main menu item title
+        updateDocumentTitle(menuItem.title);
       }
+    }
+  };
+
+  // Helper function to update document title
+  const updateDocumentTitle = (pageTitle: string) => {
+    if (typeof window !== 'undefined') {
+      // Use type assertion to avoid TypeScript error
+      (window as any).document.title = `${pageTitle} | ${title}`;
     }
   };
 
@@ -268,11 +353,13 @@ export const useAppStore = defineStore('app', () => {
     currentSubmenu,
     setCurrentPage,
     currentMenuItem,
-    Data,
+    data,
     toastMessage,
     showToast,
     menuItems,
     updateQueueMenuItems,
-    lastQueuesPath
+    lastQueuesPath,
+    fetchdata,
+    currentQueue,
   };
 });

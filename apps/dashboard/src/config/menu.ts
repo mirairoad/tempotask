@@ -24,12 +24,12 @@ export interface MenuItem {
 
 // https://primevue.org/icons/ - PrimeVue Icons
 export const menuItems: MenuItem[] = [
-  {
-    title: 'Dashboard',
-    path: '/admin',
-    icon: 'pi pi-th-large',
-    search: false,
-  },
+  // {
+  //   title: 'Dashboard',
+  //   path: '/admin',
+  //   icon: 'pi pi-th-large',
+  //   search: false,
+  // },
   {
     title: 'Queues',
     path: '/admin/queues',

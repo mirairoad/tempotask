@@ -630,11 +630,11 @@
             try {
               switch (action) {
                 case 'run':
-                  await fetch(`/admin/api/jobs/${jobId}/run`, { method: 'POST' });
+                  await fetch(`/admin/api/queues/${jobId}/run`, { method: 'POST' });
                   break;
                 case 'delete':
                   if (confirm('Are you sure you want to delete this job?')) {
-                    await fetch(`/admin/api/jobs/${jobId}`, { method: 'DELETE' });
+                    await fetch(`/admin/api/queues/${jobId}`, { method: 'DELETE' });
                   }
                   break;
               }
@@ -667,7 +667,7 @@
       // Fetch data and update UI efficiently
       async function fetchAndUpdateData() {
         try {
-          const response = await fetch('/admin/api/jobs');
+          const response = await fetch('/admin/api/queues');
           const queues = await response.json();
           
           const queuesChanged = hasQueuesChanged(queues);
