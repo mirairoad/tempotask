@@ -1,5 +1,6 @@
 # TempoTask
 [DASHBOARD IS IN ALPHA AND MIGRATING TO VUE SPA]
+
 A lightweight, non-blocking job queue system built on Redis Streams. Specializes in both cron jobs and one-off tasks with a decoupled architecture for maximum flexibility and performance.
 
 ## Core Design Principles
