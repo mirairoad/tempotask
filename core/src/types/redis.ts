@@ -12,4 +12,4 @@ export interface ExtendedRedisOptions extends RedisOptions {
  */
 export interface RedisConnection extends Redis {
   options: ExtendedRedisOptions;
-} 
+}

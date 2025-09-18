@@ -5,37 +5,41 @@ type DataStructure = {
   users: {
     name: string;
     email: string;
-  }[]
-}
+  }[];
+};
 
 const task: Task<DataStructure, AppContext> = {
-  path: 'scheduler/start',
+  name: 'start',
+  queue: 'scheduler',
   handler: async (job, ctx) => {
     console.log(
       '%c- runs every 30 seconds',
       'color: white; background-color: yellow;',
     );
 
-    for (let i = 0; i < 10; i++) {
-      ctx.addJob('scheduler/onrequest', {
+    const users = [
+      {
+        id: 1,
         name: 'John Wick',
-        email: 'john.wick@example.com'
-      }, {
-        id: `scheduler-${i}`
-        // id: `scheduler`
-      });
-    }
-
-    // await job.logger('Hello World from scheduler-queue');
-    // await job.logger('Hello World from scheduler-queue 2');
-    // await job.logger('Hello World from scheduler-queue 3');
-    // await job.logger('Hello World from scheduler-queue 4');
-    // await job.logger('Hello World from scheduler-queue 5');
-    // await job.logger('Hello World from scheduler-queue 6');
-    // await job.logger('Hello World from scheduler-queue 7');
-
-    // throw new Error('this is a big error')
-    
+        email: 'john.wick@example.com',
+      },
+      {
+        id: 2,
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+      },
+      {
+        id: 3,
+        name: 'Jim Beam',
+        email: 'jim.beam@example.com',
+      },
+    ];
+    // for (let i = 0; i < 3; i++) {
+    //   ctx.addJob('scheduler/onrequest', users[i], {
+    //     id: `onrequest-${i}`,
+    //   });
+    //   await job.logger(`added job onrequest-${i}`);
+    // }
   },
   options: {
     repeat: {

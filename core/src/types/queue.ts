@@ -27,4 +27,4 @@ export interface NextJobEntry {
   repeatDelayMs: number;
   retryCount: number;
   retryDelayMs: number;
-} 
+}

@@ -1,6 +1,7 @@
 import type { Task } from '@core/types/index.ts';
 const task: Task<unknown, unknown> = {
-  path: 'crons/multi-jobs',
+  name: 'multi-jobs',
+  queue: 'crons',
   handler: (ctx: unknown, job: unknown) => {
     console.log(
       '%c- runs every minute',

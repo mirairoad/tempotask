@@ -4,9 +4,9 @@
  */
 export interface JobState {
   name: string;
+  queue: string;
   data?: unknown;
   options?: JobOptions;
-  path: string;
 }
 
 /**
@@ -67,6 +67,7 @@ export interface JobOptions {
  */
 export interface PushJob {
   name: string;
+  queue: string;
   data?: unknown;
   options?: JobOptions;
 }
@@ -76,8 +77,8 @@ export interface PushJob {
  * @template C - The type of data the job expects
  */
 export interface ExtJobData<C> extends JobState {
-  logger: (message: string | object) => Promise<void>
-  data?: C
+  logger: (message: string | object) => Promise<void>;
+  data?: C;
 }
 
 /**
@@ -85,8 +86,7 @@ export interface ExtJobData<C> extends JobState {
  * @template C - The type of data the job expects
  */
 export interface JobHandler<C> {
-  (job: ExtJobData<C>,
-  ctx: unknown): Promise<void>
+  (job: ExtJobData<C>, ctx: unknown): Promise<void>;
 }
 
 /**
@@ -103,7 +103,9 @@ export interface JobQueueManagerOptions {
  * @template T - The type of context the job will receive
  */
 export type JobType<C> = {
-  path: string;
+  name: string;
+  queue: string;
+  description?: string;
   handler: JobHandler<C>;
   options?: JobOptions;
 };
@@ -113,7 +115,7 @@ export type JobType<C> = {
  * @template T - The type of context the job will receive
  */
 export interface defaultContext {
-  addJob: (path: string, data: unknown, options?: JobOptions) => void;
+  addJob: ({name, queue, description, data, options}: {name: string, queue: string, description?: string, data: unknown, options?: JobOptions}) => void;
 }
 
 /**
@@ -121,19 +123,19 @@ export interface defaultContext {
  * @template T - The type of context the job will receive
  */
 export interface ExtHandler<T, C> {
-  (job: C, ctx: T): Promise<void> | void
+  (job: C, ctx: T): Promise<void> | void;
 }
 
 /**
  * Represents a job definition with handler and configuration
  * @template C - The type of data the job expects
  * @template T - The type of context the job will receive
- * 
+ *
  * @example
  * ```typescript
  * import type { Job } from '@core/types/index.ts';
  * import type { AppContext } from '../index.ts';
- * 
+ *
  * // Define the data structure for your job
  * type DataStructure = {
  *   users: {
@@ -141,23 +143,26 @@ export interface ExtHandler<T, C> {
  *     email: string;
  *   }[]
  * }
- * 
+ *
  * // Create a job definition
  * const job: Job<DataStructure, AppContext> = {
- *   path: 'scheduler/start',
+ *   name: 'start',
+ *   queue: 'scheduler',
  *   handler: async (job, ctx) => {
  *     console.log('- runs every 30 seconds');
- *     
+ *
  *     // Create child jobs with the context
  *     for (let i = 0; i < 10; i++) {
  *       ctx.addJob('scheduler/onrequest', {
- *         name: 'John Wick',
- *         email: 'john.wick@example.com'
- *       }, {
- *         id: `scheduler-${i}`
+ *         name: 'onrequest',
+ *         queue: 'scheduler',
+ *         data: {},
+ *         options: {
+ *           id: `onrequest-${i}`
+ *         }
  *       });
  *     }
- *     
+ *
  *     // Use the job logger
  *     await job.logger('Job execution completed');
  *   },
@@ -168,15 +173,17 @@ export interface ExtHandler<T, C> {
  *     attempts: 3
  *   }
  * };
- * 
+ *
  * export default job;
  * ```
  */
-export interface Task<C, T> {
-  path: string;
-  handler: ExtHandler<T & defaultContext, ExtJobData<C>>;
+export interface Task<C> {
+  name: string;
+  queue: string;
+  description?: string;
+  handler: ExtHandler<defaultContext, ExtJobData<C>>;
   options?: JobOptions;
 }
 
-  // update: (job: Partial<JobData>) => Promise<void>,
-  // helpers: { stopProcessing: () => void }; 
+// update: (job: Partial<JobData>) => Promise<void>,
+// helpers: { stopProcessing: () => void };

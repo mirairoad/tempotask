@@ -1,4 +1,4 @@
-import { QueueManager } from "@core/mod.ts";
+import { QueueManager } from '@core/mod.ts';
 import { Redis, type RedisOptions } from 'ioredis';
 
 // import crons
@@ -7,6 +7,7 @@ import startScheduler from './scheduler/start.ts';
 import multiJobs from './crons/multi-jobs.ts';
 import onRequest from './scheduler/onrequest.ts';
 import type { RedisConnection } from '@core/types/index.ts';
+import { genJobId } from '@core/utils/hasher.ts';
 
 const cpuCount = 1;
 
@@ -20,7 +21,7 @@ const redisOption = {
   enableReadyCheck: false,
   db: 0,
   // this will offload the redis connection to a different database CUSTOM OPTIONS below
-  optimise: true, 
+  optimise: true,
 } as RedisOptions;
 
 // create a streamdb this enchance performance drastically and they gets unaffected by the dashboard
@@ -45,18 +46,46 @@ const contextApp: AppContext = {
     update: () => Promise.resolve(console.log('update')),
     delete: () => Promise.resolve(console.log('delete')),
   },
-}; 
+};
 
 // initialize the queue manager
-const tempotask = QueueManager.init(db, contextApp, cpuCount, { maxJobsPerStatus: 300 });
+const tempotask = QueueManager.init(db, contextApp, cpuCount, {
+  maxJobsPerStatus: 10,
+});
 
 // register jobs
 tempotask.registerJob(helloWorld); // cron
-tempotask.registerJob(multiJobs); // cron
+tempotask.registerJob<{name: string, queue: string}>({
+  name:'multi-jobs',
+  queue:'scheduler',
+  handler:(job, ctx) => {
+    ctx.addJob({
+      name:'onrequest',
+      queue:'scheduler',
+    })
+    }
+  });
+  
 tempotask.registerJob(startScheduler); // cron
 tempotask.registerJob(onRequest); // no cron
 
-// process jobs
-tempotask.processJobs();
+tempotask.registerJob({
+  name:'onrequest',
+  queue:'scheduler',
+  handler:async (job, ctx) => {
+    console.log()
+  }
+})
 
-export { tempotask }
+// process jobs
+tempotask.processJobs()
+
+console.log('🚚 tempotask is running');
+
+tempotask.addJob({
+  name:'onrequest',
+  queue:'scheduler',
+})
+
+
+// tempotask.shutdown();

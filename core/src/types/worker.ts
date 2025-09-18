@@ -23,4 +23,4 @@ export interface WorkerEventMap {
 /**
  * Represents the event type for the worker
  */
-export type WorkerEvent = keyof WorkerEventMap; 
+export type WorkerEvent = keyof WorkerEventMap;

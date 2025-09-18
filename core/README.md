@@ -5,6 +5,7 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 ## Core Design Principles
 
 ### 🎯 Non-Blocking Architecture
+
 - Fully asynchronous job processing
 - Decoupled producers and consumers
 - Independent worker processes
@@ -12,6 +13,7 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 - Efficient resource utilization
 
 ### ⚡ Dual Job Support
+
 - **Cron Jobs**: Schedule recurring tasks with cron patterns
 - **One-off Tasks**: Execute single tasks on demand
 - Mix both types in the same queue
@@ -19,6 +21,7 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 - Flexible job management
 
 ### 🔄 Decoupled Components
+
 - Separate job producers and consumers
 - Independent worker processes
 - Scalable architecture
@@ -26,6 +29,7 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 - Process isolation
 
 ### 🚀 Key Features
+
 - **Non-blocking Operations**: Asynchronous job processing
 - **Cron Support**: Schedule recurring jobs with cron patterns
 - **One-off Tasks**: Execute tasks on demand
@@ -38,7 +42,7 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 ## Quick Start
 
 ```typescript
-import { QueueManager } from "@leotermine/tempotask";
+import { QueueManager } from '@leotermine/tempotask';
 import { Redis, type RedisOptions } from 'ioredis';
 
 // Create Redis connection
@@ -46,7 +50,7 @@ const redisOption = {
   port: 6379,
   host: 'localhost',
   db: 0,
-  optimise: true,   // This will offload the Redis connection to a different database example(db_0 and duplicate on db_1 and assign to the stream)
+  optimise: true, // This will offload the Redis connection to a different database example(db_0 and duplicate on db_1 and assign to the stream)
 } as RedisOptions;
 
 const db = new Redis(redisOption);
@@ -66,8 +70,8 @@ const cronJob = {
     repeat: {
       pattern: '*/5 * * * *', // Every 5 minutes
     },
-    attempts: 3 // Retry 3 times on failure
-  }
+    attempts: 3, // Retry 3 times on failure
+  },
 };
 
 // Define a one-off task
@@ -77,8 +81,8 @@ const oneOffTask = {
     console.log('Running one-off task:', job.data);
   },
   options: {
-    attempts: 3
-  }
+    attempts: 3,
+  },
 };
 
 // Register jobs
@@ -89,22 +93,21 @@ tempotask.registerJob(oneOffTask);
 tempotask.processJobs();
 
 // Add a one-off task on demand
-tempotask.addJob('tasks/single', { 
+tempotask.addJob('tasks/single', {
   data: 'some data',
-  timestamp: new Date()
+  timestamp: new Date(),
 });
 ```
-
 
 ## Admin Dashboard
 
 TempoTask includes a built-in dashboard UI for monitoring and managing your jobs:
 
 ```typescript
-import { QueueManager } from "@leotermine/tempotask";
-import { HonoAdaptor } from "@leotermine/tempotask/adaptors/hono.adaptor.ts";
-import { Hono } from "hono";
-import { Redis } from "ioredis";
+import { QueueManager } from '@leotermine/tempotask';
+import { HonoAdaptor } from '@leotermine/tempotask/adaptors/hono.adaptor.ts';
+import { Hono } from 'hono';
+import { Redis } from 'ioredis';
 
 // Initialize Redis and Queue Manager
 const db = new Redis();
@@ -123,8 +126,8 @@ server.route('/', dashboard.initRouter());
 Deno.serve({ port: 8000 }, server.fetch);
 ```
 
-
 The dashboard provides:
+
 - Live job status monitoring
 - Job details and history
 - Pause/resume functionality
@@ -172,19 +175,20 @@ const robustJob = {
     } catch (error) {
       // Log error for dashboard visibility
       await job.logger(`Error: ${error.message}`);
-      
+
       // Rethrow to trigger retry mechanism
       throw error;
     }
   },
   options: {
     attempts: 5, // Retry 5 times
-    retryDelayMs: 10000 // Wait 10 seconds between retries
-  }
+    retryDelayMs: 10000, // Wait 10 seconds between retries
+  },
 };
 ```
 
 The system automatically:
+
 - Tracks error details in job history
 - Applies configured retry policies
 - Recovers stalled jobs after system crashes
@@ -224,6 +228,7 @@ const tempotask = QueueManager.init(db, {}, cpuCount, options);
 ## Job Status States
 
 Jobs in TempoTask can have the following statuses:
+
 - **waiting**: Job queued and waiting to be processed
 - **processing**: Currently being executed
 - **completed**: Successfully processed
@@ -237,13 +242,15 @@ TempoTask supports optimized Redis connections for high-throughput scenarios:
 ```typescript
 const redisOption = {
   port: 6379,
-  host: "localhost",
+  host: 'localhost',
   db: 0,
   optimise: true, // Enables performance optimization which duplicate the db + 1 and assign a different db to the stream for maximum performance.
 };
 
 const db = new Redis(redisOption);
-const tempotask = QueueManager.init(db, {}, cpuCount, { maxJobsPerStatus: 300 });
+const tempotask = QueueManager.init(db, {}, cpuCount, {
+  maxJobsPerStatus: 300,
+});
 ```
 
 ## Runtime Support
@@ -251,6 +258,7 @@ const tempotask = QueueManager.init(db, {}, cpuCount, { maxJobsPerStatus: 300 })
 - ✅ **Deno**: Native support via JSR
 
 ## Coming Soon
+
 - 📖 Documentation website
 - 📈 Performance metrics and analytics
 - 🔍 Dead letter queue for failed jobs
