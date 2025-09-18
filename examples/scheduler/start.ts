@@ -1,5 +1,4 @@
 import type { Task } from '@core/types/index.ts';
-import type { AppContext } from '../index.ts';
 
 type DataStructure = {
   users: {
@@ -8,9 +7,9 @@ type DataStructure = {
   }[];
 };
 
-const task: Task<DataStructure, AppContext> = {
+const task: Task<DataStructure> = {
   name: 'start',
-  queue: 'scheduler',
+  queue: 'crons',
   handler: async (job, ctx) => {
     console.log(
       '%c- runs every 30 seconds',

@@ -1,15 +1,11 @@
 import { QueueManager } from '@core/mod.ts';
-import { Redis, type RedisOptions } from 'ioredis';
+import { Redis } from 'ioredis';
 
 // import crons
 import helloWorld from './crons/hello-world.ts';
 import startScheduler from './scheduler/start.ts';
 import multiJobs from './crons/multi-jobs.ts';
 import onRequest from './scheduler/onrequest.ts';
-import type { RedisConnection } from '@core/types/index.ts';
-import { genJobId } from '@core/utils/hasher.ts';
-
-const cpuCount = 1;
 
 // Create Redis Option
 const redisOption = {
@@ -19,15 +15,13 @@ const redisOption = {
   password: '',
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
-  db: 0,
-  // this will offload the redis connection to a different database CUSTOM OPTIONS below
-  optimise: true,
-} as RedisOptions;
+  db: 1, //this will be assigne to 1 and stream will be assigne to 2, if you select 4 then it will be assigne to 4 and stream will be assigne to 5
+};
 
 // create a streamdb this enchance performance drastically and they gets unaffected by the dashboard
-const db = new Redis(redisOption) as unknown as RedisConnection;
-// this can be anything like a server instance / store / even a mongowrapper to do calls to the db
+const db = new Redis(redisOption);
 
+// this can be anything like a server instance / store / even a mongowrapper to do calls to the db
 // define the context for the app SAMPLE you pass your own context to the job
 export interface AppContext {
   mongodb: {
@@ -49,43 +43,39 @@ const contextApp: AppContext = {
 };
 
 // initialize the queue manager
-const tempotask = QueueManager.init(db, contextApp, cpuCount, {
+const tempotask = QueueManager.init(db, contextApp, 1, {
   maxJobsPerStatus: 10,
 });
 
 // register jobs
 tempotask.registerJob(helloWorld); // cron
-tempotask.registerJob<{name: string, queue: string}>({
-  name:'multi-jobs',
-  queue:'scheduler',
-  handler:(job, ctx) => {
-    ctx.addJob({
-      name:'onrequest',
-      queue:'scheduler',
-    })
-    }
-  });
-  
+tempotask.registerJob(multiJobs);  
 tempotask.registerJob(startScheduler); // cron
 tempotask.registerJob(onRequest); // no cron
 
-tempotask.registerJob({
-  name:'onrequest',
-  queue:'scheduler',
-  handler:async (job, ctx) => {
-    console.log()
-  }
-})
 
 // process jobs
-tempotask.processJobs()
+const queuesCount = tempotask.getQueuesList().length;
+const jobsCount = tempotask.getJobsList().length;
 
-console.log('🚚 tempotask is running');
+console.log(`🚚 tempotask is running: ${queuesCount} queues, ${jobsCount} jobs`);
+
+
+tempotask.processJobs();
+
+
 
 tempotask.addJob({
-  name:'onrequest',
-  queue:'scheduler',
+  name: 'onrequest',
+  queue: 'crons',
+  data: {
+    message: 'hello world',
+  },
+  options: {
+    id: 'onrequest-1',
+  },
 })
 
 
 // tempotask.shutdown();
+

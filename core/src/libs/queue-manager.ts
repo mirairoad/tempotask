@@ -61,7 +61,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
     if (!QueueManager.instance) {
       let streamdbIndex = db.options?.db;
       let streamdb;
-      if (db?.options?.optimise) {
+      // if (db?.options?.optimise) {
         streamdbIndex = db.options?.db ? db.options?.db + 1 : 1;
         if (streamdbIndex > 15) {
           throw new Error(`Redis database limit reached\n\n
@@ -72,21 +72,15 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
               THIS IS A CUSTOM OPTIONS FOR REDIS CONNECTION
               \n\n
               const redisOption = {
-                optimise: true,
-                db: 0-14,
+                db: 0-15,
               } OR
-              \n\n
-              const redisOption = {
-                optimise: false,
-                db: 15,
-              }
               \n\n
               `);
         }
         streamdb = db.duplicate({ db: streamdbIndex });
-      } else {
-        streamdb = db;
-      }
+      // } else {
+      //   streamdb = db;
+      // }
       QueueManager.instance = new QueueManager(
         db,
         ctx,
@@ -134,6 +128,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
       options?: JobOptions;
     },
   ): void {
+
    if(!job.name) {
     throw new Error(`name is required`);
    }
@@ -188,6 +183,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
     this.workers[queueName] = worker;
   }
 
+
   /**
    * Adds a job to the queue
    * @param name - Name of the job
@@ -211,12 +207,14 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
     if (!name || !queueName) {
       throw new Error('name and queueName are required');
     }
-
     const jobName = name;
     
-    const queue = this.queues[queueName].queue;
+    const queue = this.queues[queueName]?.queue;
 
     if (!queue) {
+      (async () => {
+        await this.deleteAllJobs(queueName, 'all');
+      })();
       throw new Error(`Queue ${queueName} not found`);
     }
 
@@ -460,7 +458,6 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
   async getJobs(): Promise<any[]> {
     const activeJobs = [];
     let cursor = '0';
-
     do {
       // Get batch of keys using SCAN
       const [nextCursor, keys] = await this.db.scan(
@@ -470,9 +467,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
         'COUNT',
         '1000',
       );
-
       cursor = nextCursor;
-
       if (keys.length > 0) {
         // Use Redis pipelining or MGET for batch retrieval
         // Option 1: If your Redis client supports pipelining
@@ -538,7 +533,6 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
         }
       }
     } while (cursor !== '0');
-
     return activeJobs;
   }
 
@@ -611,7 +605,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
     try {
       const foundJobs = await this.getJobs();
       const jobs = foundJobs.filter((job: any) => job.state?.queue && job.state?.name);
-      
+      console.log('hello');
       // Handle delete all jobs across all queues and statuses
       if (queueName === 'all' && status === 'all') {
         await Promise.all(
@@ -730,5 +724,14 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
     } catch (error) {
       // console.error('Error trimming jobs:', error);
     }
+  }
+
+  getQueuesList(): string[] {
+    return Object.keys(this.queues);
+  }
+
+  getJobsList(): string[] {
+    const jobs = (Object.entries(this.handlers).map(([key, value]) => Object.keys(value))).flat();
+    return jobs;
   }
 }

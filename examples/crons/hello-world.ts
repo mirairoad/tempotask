@@ -3,7 +3,7 @@ import type { Task } from '@core/types/index.ts';
 const task: Task<unknown> = {
   name: 'hello-world',
   queue: 'crons',
-  handler: (ctx, job: unknown) => {
+  handler: (job, ctx) => {
     console.log(
       '%c- runs every 1 minutes',
       'color: white; background-color: red;',
