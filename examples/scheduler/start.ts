@@ -11,6 +11,7 @@ const task: Task<DataStructure> = {
   name: 'start',
   queue: 'crons',
   handler: async (job, ctx) => {
+
     console.log(
       '%c- runs every 30 seconds',
       'color: white; background-color: yellow;',
@@ -33,7 +34,17 @@ const task: Task<DataStructure> = {
         email: 'jim.beam@example.com',
       },
     ];
-    // for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 3; i++) {
+      ctx.addJob({
+        name: 'onrequest',
+        queue: 'crons',
+        data: users[i],
+        options: {
+          id: `onrequest-${i}`,
+        },
+      });
+      await job.logger(`added job onrequest-${i}`);
+    }
     //   ctx.addJob('scheduler/onrequest', users[i], {
     //     id: `onrequest-${i}`,
     //   });

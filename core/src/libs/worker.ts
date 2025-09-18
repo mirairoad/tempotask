@@ -9,7 +9,7 @@ import {
   WorkerEventMap,
   WorkerOptions,
 } from '../types/index.ts';
-import { delay, isRedisConnection, retry } from '../utils/index.ts';
+import { delay, isRedisConnection } from '../utils/index.ts';
 
 /**
  * Represents a worker for processing jobs

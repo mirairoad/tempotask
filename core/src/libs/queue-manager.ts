@@ -122,7 +122,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
    * @param job - Job configuration
    * @throws Error if job name or queue is invalid
    */
-  registerJob<D = unknown >(
+  registerJob<D = unknown, T = unknown>(
     job: {
       name: string;
       queue: string;

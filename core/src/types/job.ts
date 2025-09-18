@@ -123,7 +123,7 @@ export interface defaultContext {
  * @template T - The type of context the job will receive
  */
 export interface ExtHandler<T, C> {
-  (job: C, ctx: T): Promise<void> | void;
+  (job: T, ctx: C): Promise<void> | void;
 }
 
 /**
@@ -177,11 +177,11 @@ export interface ExtHandler<T, C> {
  * export default job;
  * ```
  */
-export interface Task<C> {
+export interface Task<C,T = unknown> {
   name: string;
   queue: string;
   description?: string;
-  handler: ExtHandler<defaultContext, ExtJobData<C>>;
+  handler: ExtHandler<ExtJobData<C>,T &defaultContext>;
   options?: JobOptions;
 }
 

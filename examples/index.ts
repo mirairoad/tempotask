@@ -47,7 +47,6 @@ tempotask.registerJob(multiJobs);
 tempotask.registerJob(startScheduler); // cron
 tempotask.registerJob(onRequest); // no cron
 
-
 // process jobs
 const queuesCount = tempotask.getQueuesList().length;
 const jobsCount = tempotask.getJobsList().length;
