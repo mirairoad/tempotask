@@ -53,16 +53,18 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
    * @returns QueueManager instance
    */
   static init<T>(
+   args: { 
     db: RedisConnection,
-    ctx: T = {} as T,
-    concurrency: number = 1,
-    options: { maxJobsPerStatus: number } = { maxJobsPerStatus: 200 },
+    ctx: T, 
+    concurrency: number,
+    options: { maxJobsPerStatus: number },
+  }
   ): QueueManager<T> {
     if (!QueueManager.instance) {
-      let streamdbIndex = db.options?.db;
+      let streamdbIndex = args.db?.options?.db;
       let streamdb;
       // if (db?.options?.optimise) {
-        streamdbIndex = db.options?.db ? db.options?.db + 1 : 1;
+        streamdbIndex = args.db?.options?.db ? args.db?.options?.db + 1 : 1;
         if (streamdbIndex > 15) {
           throw new Error(`Redis database limit reached\n\n
               Optimise is enable means your "options.db + 1" is greater than 15
@@ -77,16 +79,16 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
               \n\n
               `);
         }
-        streamdb = db.duplicate({ db: streamdbIndex });
+        streamdb = args.db?.duplicate({ db: streamdbIndex });
       // } else {
       //   streamdb = db;
       // }
       QueueManager.instance = new QueueManager(
-        db,
-        ctx,
-        concurrency,
+        args.db,
+        args.ctx,
+        args.concurrency,
         streamdb,
-        options.maxJobsPerStatus,
+        args.options.maxJobsPerStatus,
       );
     }
     return QueueManager.instance as QueueManager<T>;

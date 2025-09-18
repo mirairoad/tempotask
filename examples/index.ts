@@ -21,19 +21,8 @@ const redisOption = {
 // create a streamdb this enchance performance drastically and they gets unaffected by the dashboard
 const db = new Redis(redisOption);
 
-// this can be anything like a server instance / store / even a mongowrapper to do calls to the db
-// define the context for the app SAMPLE you pass your own context to the job
-export interface AppContext {
-  mongodb: {
-    create: () => Promise<void>;
-    read: () => Promise<void>;
-    update: () => Promise<void>;
-    delete: () => Promise<void>;
-  };
-}
-
-// initialize the context for the app SAMPLE you pass your own context to the job
-const contextApp: AppContext = {
+// define the context for the app SAMPLE you pass your own context to the tasker so it will be always available, otherwise it will be undefined
+const contextApp = {
   mongodb: {
     create: () => Promise.resolve(console.log('create')),
     read: () => Promise.resolve(console.log('read')),
@@ -41,10 +30,15 @@ const contextApp: AppContext = {
     delete: () => Promise.resolve(console.log('delete')),
   },
 };
-
+contextApp
 // initialize the queue manager
-const tempotask = QueueManager.init(db, contextApp, 1, {
-  maxJobsPerStatus: 10,
+const tempotask = QueueManager.init({
+  db,
+  ctx: contextApp,
+  concurrency: 1,
+  options: {
+    maxJobsPerStatus: 10,
+  },
 });
 
 // register jobs
