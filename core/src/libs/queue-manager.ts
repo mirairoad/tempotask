@@ -215,7 +215,7 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
 
     if (!queue) {
       (async () => {
-        await this.deleteAllJobs(queueName, 'all');
+        await this.deleteAllJobsUtil(queueName, 'all');
       })();
       throw new Error(`Queue ${queueName} not found`);
     }
@@ -603,11 +603,10 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
    * @param status - Status of the job or "all" for all statuses
    * @returns 'OK' if deleted, null if error
    */
-  async deleteAllJobs(queueName: string, status: 'waiting' | 'processing' | 'failed' | 'completed' | 'delayed' | 'all'): Promise<string | null> {
+  async deleteAllJobsUtil(queueName: string, status: 'waiting' | 'processing' | 'failed' | 'completed' | 'delayed' | 'all'): Promise<string | null> {
     try {
       const foundJobs = await this.getJobs();
       const jobs = foundJobs.filter((job: any) => job.state?.queue && job.state?.name);
-      console.log('hello');
       // Handle delete all jobs across all queues and statuses
       if (queueName === 'all' && status === 'all') {
         await Promise.all(
@@ -648,6 +647,22 @@ export class QueueManager<T = unknown> implements QueueManagerInterface<T> {
       console.error('Error deleting all jobs:', err);
       return null;
     }
+  }
+
+
+  async deleteAllJobsByQueue(queueName: string): Promise<string | null> {
+    await this.deleteAllJobsUtil(queueName, 'all');
+    return 'OK';
+  }
+
+  async deleteAllJobsByStatus(status: 'waiting' | 'processing' | 'failed' | 'completed' | 'delayed' | 'all'): Promise<string | null> {
+    await this.deleteAllJobsUtil('all', status);
+    return 'OK';
+  }
+
+  async deleteAllJobs(): Promise<string | null> {
+    await this.deleteAllJobsUtil('all', 'all');
+    return 'OK';
   }
 
   /**
