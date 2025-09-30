@@ -45,11 +45,12 @@ export class Queue {
   private async ensureConsumerGroup(): Promise<void> {
     try {
       // Create the stream and consumer group if they don't exist
-      await this.streamdb.xgroup('CREATE', 
-        `${this.key}-stream`, 
-        'workers', 
-        '0', 
-        'MKSTREAM'
+      await this.streamdb.xgroup(
+        'CREATE',
+        `${this.key}-stream`,
+        'workers',
+        '0',
+        'MKSTREAM',
       );
     } catch (err: unknown) {
       // Ignore error if group already exists
@@ -102,10 +103,10 @@ export class Queue {
       ? state?.options?.id
       : genJobId(`${state.name}`, state?.data ?? {});
 
-      const job: Partial<JobData> = {
+    const job: Partial<JobData> = {
       id: id,
       priority: priority,
-      state: { ...state, path: `${this.key}/${state.name}` },
+      state: { ...state, name: state.name, queue: this.key },
       status: state?.options?.repeat?.pattern ? 'delayed' : 'waiting',
       delayUntil: delayUntil.getTime(),
       lockUntil: Date.now(),
@@ -117,21 +118,24 @@ export class Queue {
       retryDelayMs,
       logs: [{
         message: `Added to the queue`,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       }],
       errors,
     };
 
     const timestamp = new Date().getTime();
-    const data = { 
+    const data = {
       ...job,
       addedAt: timestamp,
-      timestamp // Set initial timestamp
+      timestamp, // Set initial timestamp
     };
     const stringifiedJob = JSON.stringify(data);
-    
+
     await this.streamdb.xadd(`${this.key}-stream`, '*', 'data', stringifiedJob);
-    await this.db.set(`queues:${this.key}:${id}:${data.status}`, stringifiedJob);
+    await this.db.set(
+      `queues:${this.key}:${id}:${data.status}`,
+      stringifiedJob,
+    );
     return { id, ...job };
   }
 
@@ -139,17 +143,17 @@ export class Queue {
    * Pauses job processing for this queue
    */
   async pause(): Promise<void> {
-      const pausedKey = `queues:${this.key}:paused`;
-      await this.db.set(pausedKey, 'true');
-    }
+    const pausedKey = `queues:${this.key}:paused`;
+    await this.db.set(pausedKey, 'true');
+  }
 
   /**
    * Resumes job processing for this queue
    */
   async resume(): Promise<void> {
-      const pausedKey = `queues:${this.key}:paused`;
-      await this.db.del(pausedKey);
-   }
+    const pausedKey = `queues:${this.key}:paused`;
+    await this.db.del(pausedKey);
+  }
 
   /**
    * Gets all jobs from the queue
@@ -158,88 +162,88 @@ export class Queue {
    * @returns Array of job data
    */
   async getAllJobs(
-      count: number = 200,
-      block: number = 5000,
-    ): Promise<Array<JobData>> {
-      // Ensure consumer group exists before reading
-      await this.ensureConsumerGroup();
-      
-      const consumerId = `worker-${Math.random().toString(36).substring(2, 15)}`;
-      
-      try {
-        const jobs = await this.streamdb.xreadgroup(
-          'GROUP', 
-          'workers', 
-          consumerId,
-          'COUNT',
-          count,
-          'BLOCK',
-          block,
-          'STREAMS',
-          `${this.key}-stream`,
-          '>'
-        ) as [string, [string, string]][];
-  
-        if (!jobs?.[0]?.[1]?.length) {
-          return [];
-        }
-  
-        return this.sanitizeStream(jobs);
-      } catch (error) {
-        console.error('Error reading from stream:', error);
+    count: number = 200,
+    block: number = 5000,
+  ): Promise<Array<JobData>> {
+    // Ensure consumer group exists before reading
+    await this.ensureConsumerGroup();
+
+    const consumerId = `worker-${Math.random().toString(36).substring(2, 15)}`;
+
+    try {
+      const jobs = await this.streamdb.xreadgroup(
+        'GROUP',
+        'workers',
+        consumerId,
+        'COUNT',
+        count,
+        'BLOCK',
+        block,
+        'STREAMS',
+        `${this.key}-stream`,
+        '>',
+      ) as [string, [string, string]][];
+
+      if (!jobs?.[0]?.[1]?.length) {
         return [];
       }
+
+      return this.sanitizeStream(jobs);
+    } catch (error) {
+      console.error('Error reading from stream:', error);
+      return [];
+    }
   }
-  
+
   /**
    * Processes and sanitizes raw stream data into job objects
    * @param stream - Raw stream data from Redis
    * @returns Array of sanitized job objects
    */
   sanitizeStream(stream: [string, [string, string]][]): JobData[] {
-      if (!stream?.[0]?.[1]) return [];
-      
-      const messages = stream[0][1];
-      const processedIds = new Set(); // Track processed job IDs
-      
-      return messages
-        .map(([messageId, [_, jobDataStr]]) => {
-          try {
-            // Ensure jobDataStr is a valid JSON string
-            if (!jobDataStr || typeof jobDataStr !== 'string') {
-              console.error('Invalid job data:', jobDataStr);
-              return null;
-            }
-  
-            const jobData = JSON.parse(jobDataStr);
-            
-            if (!jobData) {
-              console.error('Failed to parse job data:', jobDataStr);
-              return null;
-            }
-  
-            return {
-              messageId,
-              streamKey: stream[0][0],
-              ...jobData
-            };
-          } catch (error) {
-            console.error('Error parsing job data:', error);
-            console.error('Raw job data:', jobDataStr);
+    if (!stream?.[0]?.[1]) return [];
+
+    const messages = stream[0][1];
+    const processedIds = new Set(); // Track processed job IDs
+
+    return messages
+      .map(([messageId, [_, jobDataStr]]) => {
+        try {
+          // Ensure jobDataStr is a valid JSON string
+          if (!jobDataStr || typeof jobDataStr !== 'string') {
+            console.error('Invalid job data:', jobDataStr);
             return null;
           }
-        })
-        .filter((job): job is JobData => {
-          if (!job) return false;
-          
-          // Only process unique jobs based on ID and path
-          const jobIdentifier = `${job.id}:${job.state?.path}`;
-          if (processedIds.has(jobIdentifier)) {
-            return false;
+
+          const jobData = JSON.parse(jobDataStr);
+
+          if (!jobData) {
+            console.error('Failed to parse job data:', jobDataStr);
+            return null;
           }
-          processedIds.add(jobIdentifier);
-          return true;
-        });
+
+          return {
+            messageId,
+            streamKey: stream[0][0],
+            ...jobData,
+          };
+        } catch (error) {
+          console.error('Error parsing job data:', error);
+          console.error('Raw job data:', jobDataStr);
+          return null;
+        }
+      })
+      .filter((job): job is JobData => {
+        if (!job) return false;
+
+        // Only process unique jobs based on ID, name and queue
+        const jobIdentifier = `${job.id}:${job.state?.name}:${job.state?.queue}`;
+        if (processedIds.has(jobIdentifier)) {
+          return false;
+        }
+        processedIds.add(jobIdentifier);
+        return true;
+      });
   }
 
   /**
@@ -249,10 +253,16 @@ export class Queue {
    * @returns Worker instance
    */
   createWorker(
-    handler: (jobData: JobData) => Promise<void> ,
+    handler: (jobData: JobData) => Promise<void>,
     options?: WorkerOptions,
   ): Worker {
-    return new Worker(this.db, this.key, handler as unknown as JobHandler<unknown>, options, this.streamdb);
+    return new Worker(
+      this.db,
+      this.key,
+      handler as unknown as JobHandler<unknown>,
+      options,
+      this.streamdb,
+    );
   }
 
   /**
@@ -261,10 +271,10 @@ export class Queue {
    */
   async xtrim(maxLen: number = 200): Promise<void> {
     try {
-        await this.streamdb.xtrim(this.key + '-stream', 'MAXLEN', maxLen);
+      await this.streamdb.xtrim(this.key + '-stream', 'MAXLEN', maxLen);
     } catch (error) {
-        // console.error(`Error trimming stream ${this.key}:`, error);
-        throw error;
+      // console.error(`Error trimming stream ${this.key}:`, error);
+      throw error;
     }
   }
 
@@ -279,8 +289,12 @@ export class Queue {
     for (const [key, value] of Object.entries(data)) {
       args.push(key, value);
     }
-    
-    const id = await this.streamdb.xadd(this.key + '-stream', '*', ...args) as string;
+
+    const id = await this.streamdb.xadd(
+      this.key + '-stream',
+      '*',
+      ...args,
+    ) as string;
     await this.xtrim(); // Automatically trim to keep most recent 200 entries
     return id;
   }

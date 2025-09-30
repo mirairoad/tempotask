@@ -1,45 +1,59 @@
 import type { Task } from '@core/types/index.ts';
-import type { AppContext } from '../index.ts';
 
 type DataStructure = {
   users: {
     name: string;
     email: string;
-  }[]
-}
+  }[];
+};
 
-const task: Task<DataStructure, AppContext> = {
-  path: 'scheduler/start',
+const task: Task<DataStructure> = {
+  name: 'start',
+  queue: 'crons',
   handler: async (job, ctx) => {
+
     console.log(
-      '%c- runs every 2 minutes',
+      '%c- runs every 30 seconds',
       'color: white; background-color: yellow;',
     );
 
-    for (let i = 0; i < 10; i++) {
-      ctx.addJob('scheduler/onrequest', {
+    const users = [
+      {
+        id: 1,
         name: 'John Wick',
-        email: 'john.wick@example.com'
-      }, {
-        id: `scheduler-${i}`
-        // id: `scheduler`
+        email: 'john.wick@example.com',
+      },
+      {
+        id: 2,
+        name: 'Jane Doe',
+        email: 'jane.doe@example.com',
+      },
+      {
+        id: 3,
+        name: 'Jim Beam',
+        email: 'jim.beam@example.com',
+      },
+    ];
+    for (let i = 0; i < 3; i++) {
+      ctx.addJob({
+        name: 'onrequest',
+        queue: 'crons',
+        data: users[i],
+        options: {
+          id: `onrequest-${i}`,
+        },
       });
+      await job.logger(`added job onrequest-${i}`);
     }
-
-    // await job.logger('Hello World from scheduler-queue');
-    // await job.logger('Hello World from scheduler-queue 2');
-    // await job.logger('Hello World from scheduler-queue 3');
-    // await job.logger('Hello World from scheduler-queue 4');
-    // await job.logger('Hello World from scheduler-queue 5');
-    // await job.logger('Hello World from scheduler-queue 6');
-    // await job.logger('Hello World from scheduler-queue 7');
-
-    // throw new Error('this is a big error')
-    
+    //   ctx.addJob('scheduler/onrequest', users[i], {
+    //     id: `onrequest-${i}`,
+    //   });
+    //   await job.logger(`added job onrequest-${i}`);
+    // }
   },
   options: {
     repeat: {
-      pattern: '*/2 * * * *',
+      pattern: '*/30 * * * * *',
     },
     attempts: 3,
   },
