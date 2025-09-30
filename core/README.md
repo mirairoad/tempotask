@@ -39,10 +39,13 @@ A lightweight, non-blocking job queue system built on Redis Streams. Specializes
 - **Job Recovery**: Automatic recovery of stalled jobs
 - **Dashboard UI**: Monitor and manage jobs through web interface
 
+// ... existing code ...
+
 ## Quick Start
 
 ```typescript
 import { QueueManager } from '@leotermine/tempotask';
+import type { Task } from '@leotermine/tempotask/types';
 import { Redis, type RedisOptions } from 'ioredis';
 
 // Create Redis connection
@@ -55,16 +58,58 @@ const redisOption = {
 
 const db = new Redis(redisOption);
 
-// Initialize queue manager with 1 or more concurrent jobs.
-const tempotask = QueueManager.init(db, {}, 1, { maxJobsPerStatus: 300 });
+// Define your application context (optional)
+const appContext = {
+  mongodb: {
+    create: () => Promise.resolve(console.log('create')),
+    read: () => Promise.resolve(console.log('read')),
+    update: () => Promise.resolve(console.log('update')),
+    delete: () => Promise.resolve(console.log('delete')),
+  },
+};
 
-// Define a cron job pretty much same as bullmq (missing debounce and backoff strategy)
-const cronJob = {
-  path: 'crons/recurring',
+// Initialize queue manager with context and configuration
+const tempotask = QueueManager.init({
+  db,
+  ctx: appContext,
+  concurrency: 1,
+  options: {
+    maxJobsPerStatus: 300,
+  },
+});
+
+// Define data structure for your job
+type UserData = {
+  id: number;
+  name: string;
+  email: string;
+};
+
+// Define a cron job using the Task interface
+const cronJob: Task<UserData> = {
+  name: 'process-users',
+  queue: 'crons',
+  description: 'Process users every 5 minutes',
   handler: async (job, ctx) => {
-    console.log('Running scheduled task:', job.id);
-    // Use job.logger to log information
-    await job.logger('Task executed successfully');
+    console.log('Running scheduled task:', job.name);
+    
+    // Access typed job data
+    const userData = job.data;
+    console.log('Processing user:', userData?.name);
+    
+    // Create child jobs using the context
+    ctx.addJob({
+      name: 'send-email',
+      queue: 'notifications',
+      data: { userId: userData?.id, email: userData?.email },
+      options: {
+        id: `email-${userData?.id}`,
+        attempts: 3,
+      },
+    });
+    
+    // Use job logger
+    await job.logger('User processing completed');
   },
   options: {
     repeat: {
@@ -75,10 +120,13 @@ const cronJob = {
 };
 
 // Define a one-off task
-const oneOffTask = {
-  path: 'tasks/single',
+const oneOffTask: Task<unknown> = {
+  name: 'send-notification',
+  queue: 'notifications',
+  description: 'Send notification to user',
   handler: async (job, ctx) => {
     console.log('Running one-off task:', job.data);
+    await job.logger('Notification sent successfully');
   },
   options: {
     attempts: 3,
@@ -93,89 +141,124 @@ tempotask.registerJob(oneOffTask);
 tempotask.processJobs();
 
 // Add a one-off task on demand
-tempotask.addJob('tasks/single', {
-  data: 'some data',
-  timestamp: new Date(),
+tempotask.addJob({
+  name: 'send-notification',
+  queue: 'notifications',
+  data: {
+    message: 'Hello World',
+    userId: 123,
+  },
+  options: {
+    id: 'notification-123',
+    attempts: 3,
+  },
 });
 ```
 
-## Admin Dashboard
-
-TempoTask includes a built-in dashboard UI for monitoring and managing your jobs:
-
-```typescript
-import { QueueManager } from '@leotermine/tempotask';
-import { HonoAdaptor } from '@leotermine/tempotask/adaptors/hono.adaptor.ts';
-import { Hono } from 'hono';
-import { Redis } from 'ioredis';
-
-// Initialize Redis and Queue Manager
-const db = new Redis();
-const tempotask = QueueManager.init(db);
-
-// Create Hono server
-const server = new Hono();
-
-// Initialize dashboard
-const dashboard = new HonoAdaptor(tempotask);
-
-// Add dashboard routes to server
-server.route('/', dashboard.initRouter());
-
-// Start the server
-Deno.serve({ port: 8000 }, server.fetch);
-```
-
-The dashboard provides:
-
-- Live job status monitoring
-- Job details and history
-- Pause/resume functionality
-- Delete jobs individually or in bulk
-- View execution logs
-- Inspect job data
+// ... existing code ...
 
 ## Job Types
 
 ```typescript
-// Cron Job Definition
-interface Job<Context> {
-  path: string;
-  handler: (job: ExtJobData, ctx: Context) => Promise<void>;
-  options?: {
-    repeat?: {
-      pattern: string; // Cron pattern
-    };
-    attempts?: number; // Number of retry attempts
-    id?: string; // Optional custom ID
+import type { Task, ExtJobData, defaultContext } from '@leotermine/tempotask/types';
+
+// Define your data structure
+type MyDataType = {
+  id: number;
+  message: string;
+};
+
+// Define your custom context (extends defaultContext)
+interface MyAppContext extends defaultContext {
+  database: {
+    save: (data: any) => Promise<void>;
+    find: (id: number) => Promise<any>;
+  };
+  externalApi: {
+    send: (data: any) => Promise<void>;
   };
 }
 
+// Task Definition
+const myTask: Task<MyDataType, MyAppContext> = {
+  name: 'process-data',
+  queue: 'main',
+  description: 'Process incoming data',
+  handler: async (job, ctx) => {
+    // job.data is typed as MyDataType
+    const data = job.data;
+    console.log('Processing:', data?.message);
+    
+    // ctx has your custom context + defaultContext (addJob method)
+    await ctx.database.save(data);
+    await ctx.externalApi.send(data);
+    
+    // Create child jobs
+    ctx.addJob({
+      name: 'cleanup',
+      queue: 'main',
+      data: { id: data?.id },
+      options: {
+        delayUntil: new Date(Date.now() + 60000), // Delay 1 minute
+      },
+    });
+    
+    // Log progress
+    await job.logger('Data processing completed');
+  },
+  options: {
+    attempts: 5,
+    retryDelayMs: 5000,
+    repeat: {
+      pattern: '0 */1 * * *', // Every hour
+    },
+  },
+};
+
 // ExtJobData provides access to job information and utilities
-interface ExtJobData {
-  id: string;
-  data: unknown;
-  logger: (message: string) => Promise<void>;
+interface ExtJobData<T> {
+  name: string;
+  queue: string;
+  data?: T; // Typed data based on your Task definition
+  logger: (message: string | object) => Promise<void>;
   // Other job properties...
 }
 ```
+
+// ... existing code ...
 
 ## Error Handling & Job Recovery
 
 TempoTask includes robust error handling mechanisms:
 
 ```typescript
-// Define a job with retry options
-const robustJob = {
-  path: 'tasks/important',
+import type { Task } from '@leotermine/tempotask/types';
+
+// Define a job with comprehensive error handling
+const robustJob: Task<unknown> = {
+  name: 'risky-operation',
+  queue: 'critical',
+  description: 'Perform risky operation with retry logic',
   handler: async (job, ctx) => {
     try {
-      // Your task logic here
+      // Your risky task logic here
       await riskyOperation();
+      await job.logger('Operation completed successfully');
     } catch (error) {
       // Log error for dashboard visibility
-      await job.logger(`Error: ${error.message}`);
-
+      await job.logger(`Error occurred: ${error.message}`);
+      
+      // You can create fallback jobs
+      ctx.addJob({
+        name: 'fallback-operation',
+        queue: 'critical',
+        data: { originalError: error.message },
+        options: {
+          attempts: 1,
+          priority: 10, // High priority
+        },
+      });
+      
       // Rethrow to trigger retry mechanism
       throw error;
     }
@@ -183,10 +266,10 @@ const robustJob = {
   options: {
     attempts: 5, // Retry 5 times
     retryDelayMs: 10000, // Wait 10 seconds between retries
+    priority: 5, // Normal priority
   },
 };
 ```
-
 The system automatically:
 
 - Tracks error details in job history
